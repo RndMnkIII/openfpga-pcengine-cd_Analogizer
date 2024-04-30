@@ -3,7 +3,7 @@
     "magic": "APF_VER_1",
     "metadata": {
       "platform_ids": ["pcecd"],
-      "shortname": "PC Engine CD",
+      "shortname": "PC Engine CD_Analogizer",
       "description": "PC Engine (known as TurboGrafx-16 in the US) by NEC",
       "author": "Mazamars312",
       "url": "https://github.com/Mazamars312/openfpga-pcengine-cd/",
