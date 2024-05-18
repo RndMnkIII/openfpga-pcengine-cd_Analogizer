@@ -9,14 +9,8 @@ DATA_RADIX = HEX;
 CONTENT
 BEGIN
 
-<<<<<<< Updated upstream
-   0E0 : 20240414;
-   0E1 : 00171813;
-   0E2 : 135944e2;
-=======
-   0E0 : 20240408;
-   0E1 : 00191722;
-   0E2 : 5a5578b4;
->>>>>>> Stashed changes
+   0E0 : 20240518;
+   0E1 : 00101405;
+   0E2 : fc915392;
 
 END;

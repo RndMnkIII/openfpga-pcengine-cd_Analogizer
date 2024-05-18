@@ -136,6 +136,8 @@ uart_fifo uart_fifo_tx (
 
 assign ser_txgo_wire = ~fifo_empty && ser_txready_wire;
 
+wire ser_txready_wire, ser_rxint, open;
+
 simple_uart simple_uart (
 .clk        (clk_mpu),
 .reset      (reset_n),

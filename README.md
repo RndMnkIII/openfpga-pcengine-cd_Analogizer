@@ -1,5 +1,42 @@
-PC Engine CD 0.2.0 ALPHA for Analogue Pocket
-============================================
+ADAPTED FOR ANALOGIZER: PC Engine CD 0.2.0 ALPHA for Analogue Pocket
+====================================================================
+* [1.0] **Analogizer** support added by **RndMnkIII**. See more in the Analogizer main repository: [Analogizer](https://github.com/RndMnkIII/Analogizer) [18/05/2024].
+The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler (50% scanlines) video signals.
+
+| Video output | Status |
+| :----------- | :----: |
+| RGBS         |  ✅    |
+| RGsB         |  ✅    |
+| YPbPr        |  ✅    |
+| Y/C*         |  ✅    |
+| Scandoubler  |  ✅    |
+
+* **Analogizer** is responsible for generating the correct encoded Y/C signals from RGB and outputs to R,G pins of VGA port. Also redirects the CSync to VGA HSync pin.
+The required external Y/C adapter that connects to VGA port is responsible for output Svideo o composite video signal using his internal electronics. Oficially
+only the Mike Simone Y/C adapters (active or passive) designs will be supported by Analogizer and will be the ones to use.
+
+Adapted to **Analogizer** by [@RndMnkIII](https://github.com/RndMnkIII).
+Support native PCEngine/TurboGrafx-16 2btn, 6 btn gamepads and 5 player multitap using SNAC adapter
+and PC Engine cable harness (specific for Analogizer). Many thanks to [Mike Simone](https://github.com/MikeS11/MiSTerFPGA_YC_Encoder) for his great Y/C Encoder project.
+
+For output Scandoubler SVGA video you need to select in Pocket's Menu: `Analogizer Video Out > Scandoubler RGBHV`.
+
+For output Y/C video you need to select in Pocket's Menu: `Analogizer Video Out > Y/C NTSC` or `Analogizer Video Out > Y/C NTSC,Pocket OFF`.
+
+You will need to connect an active VGA to Y/C adapter to the VGA port (the 5V power is provided by VGA pin 9). I'll recomend one of these (active):
+* [MiSTerAddons - Active Y/C Adapter](https://misteraddons.com/collections/parts/products/yc-active-encoder-board/)
+* [MikeS11 Active VGA to Composite / S-Video](https://ultimatemister.com/product/mikes11-active-composite-svideo/)
+* [Active VGA->Composite/S-Video adapter](https://antoniovillena.com/product/mikes1-vga-composite-adapter/)
+
+Or this passive one:
+* [MikeS11 Y/C Passive Adapter](https://ultimatemister.com/product/mikes1-yc-passive-board/)
+
+Using another type of Y/C adapter not tested to be used with Analogizer will not receive official support.
+
+I'll recomend also read this guide for MiSTer FPGA but can applied to Analogizer:
+[MiSTer FPGA Documentation: Using Your CRT With MiSTer](https://mister-devel.github.io/MkDocs_MiSTer/advanced/crt/)
+
+=====================================================================
 
 This is a pre-release of the 0.2.0 version, which will have some more upgrades to the
 MPU core code. Nothing in the PCE core has been changed that might be causing bugs in the 
