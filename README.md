@@ -1,6 +1,6 @@
-ADAPTED FOR ANALOGIZER: PC Engine CD 0.2.0 ALPHA for Analogue Pocket
+Analogizer PC Engine CD 1.0 for Analogue Pocket
 ====================================================================
-* [1.0] **Analogizer** support added by **RndMnkIII**. See more in the Analogizer main repository: [Analogizer](https://github.com/RndMnkIII/Analogizer) [18/05/2024].
+* [1.0] **Analogizer** support added by **RndMnkIII** and based on **mazamars312** CD 0.2.0 ALPHA Pocket port. See more in the Analogizer main repository: [Analogizer](https://github.com/RndMnkIII/Analogizer) [18/05/2024].
 The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler (50% scanlines) video signals.
 
 | Video output | Status |
