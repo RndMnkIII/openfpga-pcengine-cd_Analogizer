@@ -18,7 +18,15 @@
 //
 // This runs a Mister interface and other interfaces can be built for this for other projects :-)
 
-module substitute_mcu_apf_mister(
+module MPU_AFP_CORE 
+
+#( parameter 	MPU_BRAM_ADDRESS 			= 8'h00, 
+					MPU_BRAM_SIZE 				= 14,
+					MPU_SCRACHRAM_ADDRESS 	= 8'h01,
+					MPU_SCRATCH_BRAM_SIZE 	= 8,
+					MPU_PSRAM_ADDRESS 		= 8'h10)(
+					
+
 	input                  	clk_mpu,
 	input 					  	clk_sys,
 	input                  	reset_n,
@@ -28,24 +36,33 @@ module substitute_mcu_apf_mister(
 	input [31:0]  		     	bridge_addr,
 	input 	     		     	bridge_rd,
 	output [31:0]  	     	mpu_ram_bridge_rd_data,
+	output [31:0]  	     	mpu_scrachram_bridge_rd_data,
+	output [31:0]  	     	mpu_psram_bridge_rd_data,
 	output reg [31:0]  	  	mpu_reg_bridge_rd_data,
 	input 	     		     	bridge_wr,
 	input  [31:0]   	     	bridge_wr_data,
 		 
 
-    input 	     	        	dataslot_update,
-    input 	     	[15:0]  	dataslot_update_id,
-    input 	     	[31:0]  	dataslot_update_size,
+	input 	     	        	dataslot_update,
+   input 	     	[15:0]  	dataslot_update_id,
+   input 	     	[31:0]  	dataslot_update_size,
+	input    		[15:0]  	dataslot_update_size_lba48,
 
 	output reg             	target_dataslot_read,       // rising edge triggered
 	output reg             	target_dataslot_write,
+	output reg 					target_dataslot_enableLBA48,
+	output reg 					target_dataslot_flush,
+	output reg 					target_dataslot_Get_filename,
+	output reg 					target_dataslot_Open_file,
 
 	input                  	target_dataslot_ack,        // asserted upon command start until completion
 	input                  	target_dataslot_done,       // asserted upon command finish until next command is issued    
-	input        [2:0]     	target_dataslot_err,        // contains result of command execution. zero is OK
+	input        [5:0]     	target_dataslot_err,        // contains result of command execution. zero is OK
+
 
 	output reg   [15:0]    	target_dataslot_id,         // parameters for each of the read/reload/write commands
 	output reg   [31:0]    	target_dataslot_slotoffset,
+	output reg 	 [15:0]		target_dataslot_slotoffsetLBA48,
 	output reg   [31:0]    	target_dataslot_bridgeaddr,
 	output reg   [31:0]    	target_dataslot_length,
 
@@ -105,7 +122,7 @@ reg [31:0] uart_divisor;
 
 // CPU Wires
 wire [31:0] dBus_cmd_payload_address;
-wire [31:0] dBus_cmd_payload_data, from_rom;
+wire [31:0] dBus_cmd_payload_data, dBus_bram_data_rom;
 wire [3:0]  cpu_bytesel;
 reg  [31:0] dBus_rsp_data;
 reg         dBus_rsp_ready;
@@ -124,51 +141,54 @@ wire			fifo_empty;
 
 // We need to see what is happening right? this is sent via the UART on the Cart port
 uart_fifo uart_fifo_tx (
-	.aclr		(~reset_n),
-	.clock	(clk_mpu),
-	.data		(ser_txdata),
-	.rdreq	(ser_txgo_wire),
-	.wrreq	(ser_txgo),
-	.empty	(fifo_empty),
-	.full		(fifo_full),
-	.q			(ser_txdata_wire)
+	.aclr				(~reset_n),
+	.clock			(clk_mpu),
+	.data				(ser_txdata),
+	.rdreq			(ser_txgo_wire),
+	.wrreq			(ser_txgo),
+	.empty			(fifo_empty),
+	.full				(fifo_full),
+	.q					(ser_txdata_wire)
 );
 
 assign ser_txgo_wire = ~fifo_empty && ser_txready_wire;
-
-wire ser_txready_wire, ser_rxint, open;
+wire ser_txready_wire, ser_rxint, open; //Analogizer fix: Quartus can't declare implicit net error
 
 simple_uart simple_uart (
-.clk        (clk_mpu),
-.reset      (reset_n),
-.txdata     (ser_txdata_wire),
-.txready    (ser_txready_wire),
-.txgo       (ser_txgo_wire),
-.rxdata     (ser_rxdata),
-.rxint      (ser_rxint),
-.txint      (open),
-.clock_divisor (uart_divisor),
-.rxd        (rxd),
-.txd        (txd));
+.clk        		(clk_mpu),
+.reset      		(reset_n),
+.txdata     		(ser_txdata_wire),
+.txready    		(ser_txready_wire),
+.txgo       		(ser_txgo_wire),
+.rxdata     		(ser_rxdata),
+.rxint      		(ser_rxint),
+.txint      		(open),
+.clock_divisor 	(uart_divisor),
+.rxd        		(rxd),
+.txd        		(txd));
     
 // Ram controller that is duel ported so one side is on the APF bus and is addressable
-reg	littlenden;  
+reg					littlenden;  
 wire [31:0] 		iBus_cmd_payload_pc;
 wire [31:0] 		iBus_rsp_payload_inst;
 wire 					iBus_cmd_ready, iBus_cmd_valid;
 wire 					iBus_rsp_valid;
 reg					interupt_mask;
 wire 					dBus_ram_ready;
-wire 					dBus_cmd_ready;
+wire 					dBus_cmd_ready = 1;
 wire 					dBus_cmd_valid;
 wire [1:0] 			dBus_cmd_payload_size;
 wire 					dBus_cmd_payload_wr;
+wire [31:0]			scratch_bram_data_rom;
+
 
 controller_rom 
-#(.top_address(16'h8000), // This sets the location on the APF bus to watch out for
-  .address_size (5'd14) //Address lines for the memory array
+#(	.mpu_address	(8'h00),
+	.aft_address	(MPU_BRAM_ADDRESS), // This sets the location on the APF bus to watch out for
+	.address_size 	(MPU_BRAM_SIZE),
+	.aft_master		(1'b0) //Address lines for the memory array
 )
-controller_rom(
+Main_Bram(
 	.clk							(clk_mpu),
 	.reset_n						(reset_n),
 	// Instruction Side
@@ -180,8 +200,8 @@ controller_rom(
 	// Data Side
 	.data_addr					(dBus_cmd_payload_address),
 	.data_d						(dBus_cmd_payload_data),
-	.data_q						(from_rom),
-	.data_we						(mem_la_write),
+	.data_q						(dBus_bram_data_rom),
+	.data_we						(dBus_cmd_payload_wr),
 	.dBus_cmd_valid			(dBus_cmd_valid),
 	.data_bytesel				(dBus_cmd_payload_size),
 	// APF Side
@@ -194,7 +214,31 @@ controller_rom(
 	.bridge_wr_data			(bridge_wr_data)
 );
 
-
+controller_rom 
+#(	.mpu_address	(8'h01),
+	.aft_address	(MPU_SCRACHRAM_ADDRESS), // This sets the location on the APF bus to watch out for
+	.address_size 	(MPU_SCRATCH_BRAM_SIZE),
+	.aft_master		(1'b1) //Address lines for the memory array
+)
+Scratch_Ram(
+	.clk							(clk_mpu),
+	.reset_n						(reset_n),
+	// Data Side
+	.data_addr					(dBus_cmd_payload_address),
+	.data_d						(dBus_cmd_payload_data),
+	.data_q						(scratch_bram_data_rom),
+	.data_we						(dBus_cmd_payload_wr),
+	.dBus_cmd_valid			(dBus_cmd_valid),
+	.data_bytesel				(dBus_cmd_payload_size),
+	// APF Side
+	.little_enden				(littlenden),
+	.clk_74a						(clk_74a),
+	.bridge_addr				(bridge_addr),
+	.bridge_rd					(bridge_rd),
+	.bridge_rd_data			(mpu_scrachram_bridge_rd_data),
+	.bridge_wr					(bridge_wr),
+	.bridge_wr_data			(bridge_wr_data)
+);
 
 
 // The CPU VexRisc
@@ -203,8 +247,8 @@ wire 			mem_la_read, mem_la_write;
 reg			externalInterrupt;
 reg			interupt_output_1_reg;
 
-assign mem_la_read 	= dBus_cmd_valid && ~dBus_cmd_payload_wr;
-assign mem_la_write	= dBus_cmd_valid &&  dBus_cmd_payload_wr;
+assign mem_la_read 	= dBus_cmd_valid && ~dBus_cmd_payload_wr && dBus_cmd_ready;
+assign mem_la_write	= dBus_cmd_valid &&  dBus_cmd_payload_wr && dBus_cmd_ready;
 
 
 
@@ -224,12 +268,12 @@ assign mem_la_write	= dBus_cmd_valid &&  dBus_cmd_payload_wr;
 		.externalInterrupt			(externalInterrupt),
 		.softwareInterrupt			(1'b0),
 		.dBus_cmd_valid				(dBus_cmd_valid),
-		.dBus_cmd_ready				(1'b1),
+		.dBus_cmd_ready				(dBus_cmd_ready),
 		.dBus_cmd_payload_wr			(dBus_cmd_payload_wr),
 		.dBus_cmd_payload_address	(dBus_cmd_payload_address),
 		.dBus_cmd_payload_data		(dBus_cmd_payload_data),
 		.dBus_cmd_payload_size		(dBus_cmd_payload_size),
-		.dBus_rsp_ready				(|{dBus_rsp_ready}),
+		.dBus_rsp_ready				(dBus_rsp_ready),
 		.dBus_rsp_error				(1'b0),
 		.dBus_rsp_data					(dBus_rsp_data)
 		);
@@ -297,6 +341,17 @@ clock_reg_latch #(.data_size(32) ) dataslot_update_size_latch(
 	.write_trigger         (dataslot_update),
 	.write_data_in         (dataslot_update_size),
 	.read_data_out         (dataslot_update_size_latched)
+);
+
+wire [15:0] dataslot_update_size_lba48_latched;
+
+clock_reg_latch #(.data_size(15) ) dataslot_update_size_lba48_latch(
+	.write_clk             (clk_74a),        // the APF clock
+	.read_clk              (clk_mpu),        // the system clock
+	.reset_n               (reset_n),
+	.write_trigger         (dataslot_update),
+	.write_data_in         (dataslot_update_size_lba48),
+	.read_data_out         (dataslot_update_size_lba48_latched)
 );
     
 // external access to the CPU or cores for other cool stuff
@@ -440,194 +495,194 @@ reg target_dataslot_done_reg;
 reg externalInterrupt_enabled;
 reg timerenabled;
 reg psram_data_access;
+reg scrach_data_access;
 
 always @(posedge clk_mpu) begin
-	dBus_rsp_ready <= 0;
+	
 	ser_txgo <= 0;
+	
 	dataslot_update_ack <= 'b0;
-	psram_data_access <= 0;
+	
 	target_dataslot_write <= 'b0;
 	target_dataslot_read <= 'b0;
+	target_dataslot_Open_file <= 'b0;
+	target_dataslot_Get_filename <= 'b0;
+	target_dataslot_flush <= 'b0;
+	
 	target_dataslot_done_reg <= target_dataslot_done;
+	
 	if (target_dataslot_done && ~target_dataslot_done_reg && externalInterrupt_enabled) externalInterrupt <= 1'b1;
 	else  externalInterrupt <= 1'b0;
+	
 	if (timerenabled) interupt_output_1_reg <= interupt_output_1;
 	else  interupt_output_1_reg <= 0;
+	
 	millisecond_counter_reset_1 <= 1'b0;
 	millisecond_counter_reset_2 <= 1'b0;
+	
 	// UART Received signal
 	if (ser_rxint) ser_rxrecv <= 1;
 
-	if (dBus_cmd_valid)begin
-		if (dBus_cmd_payload_address[31:12] == 'hffff0) begin
-			dBus_rsp_ready <= 1;
-			psram_data_access <= 0;
-			dataslot_data_access <= 1;
-			ext_data_en <= 0;
-		end
-		else if (dBus_cmd_payload_address[31:24] == 'h10) begin
-			psram_data_access <= 1;
-			dataslot_data_access <= 0;
-			ext_data_en <= 0;
-		end
-		else if (dBus_cmd_payload_address[31:8] == 'hFFFFFF) begin
-			dBus_rsp_ready <= 1;
-			psram_data_access <= 0;
-			dataslot_data_access <= 0;
-			ext_data_en <= 1;
+	if (dBus_cmd_valid && dBus_cmd_ready)begin
+		if (dBus_cmd_payload_address[31:8] == 'hFFFFFF) begin
 			if (~dBus_cmd_payload_wr) begin
 				casez (dBus_cmd_payload_address[7:0])
 
 					// Interaction Access
 					'h00 : begin // mpu_reg_0 read
-					ext_data_out <= mpu_reg_0;
+						ext_data_out <= mpu_reg_0;
 					end
 					'h04 : begin // mpu_reg_1 read
-					ext_data_out <= mpu_reg_1;
+						ext_data_out <= mpu_reg_1;
 					end
 					'h08 : begin // mpu_reg_2 read
-					ext_data_out <= mpu_reg_2;
+						ext_data_out <= mpu_reg_2;
 					end
 					'h0C : begin // mpu_reg_3 read
-					ext_data_out <= mpu_reg_3;
+						ext_data_out <= mpu_reg_3;
 					end
 					'h10 : begin // mpu_reg_4 read
-					ext_data_out <= mpu_reg_4;
+						ext_data_out <= mpu_reg_4;
 					end
 					'h14 : begin // mpu_reg_5 read
-					ext_data_out <= mpu_reg_5;
+						ext_data_out <= mpu_reg_5;
 					end
 					'h18 : begin // mpu_reg_6 read
-					ext_data_out <= mpu_reg_6;
+						ext_data_out <= mpu_reg_6;
 					end
 					'h1C : begin // mpu_reg_7 read
-					ext_data_out <= mpu_reg_7;
+						ext_data_out <= mpu_reg_7;
 					end
 
 					// Controller inputs
 
 					'h20 : begin // cont1_key read
-					ext_data_out <= cont1_key;
+						ext_data_out <= cont1_key;
 					end
 					'h24 : begin // cont2_key read
-					ext_data_out <= cont2_key;
+						ext_data_out <= cont2_key;
 					end
 					'h28 : begin // cont3_key read
-					ext_data_out <= cont3_key;
+						ext_data_out <= cont3_key;
 					end
 					'h2C : begin // cont4_key read
-					ext_data_out <= cont4_key;
+						ext_data_out <= cont4_key;
 					end
 					'h30 : begin // cont1_joy read
-					ext_data_out <= cont1_joy;
+						ext_data_out <= cont1_joy;
 					end
 					'h34 : begin // cont2_joy read
-					ext_data_out <= cont2_joy;
+						ext_data_out <= cont2_joy;
 					end
 					'h38 : begin // cont3_joy read
-					ext_data_out <= cont3_joy;
+						ext_data_out <= cont3_joy;
 					end
 					'h3C : begin // cont4_joy read
-					ext_data_out <= cont4_joy;
+						ext_data_out <= cont4_joy;
 					end
 					'h40 : begin // cont1_joy read
-					ext_data_out <= cont1_trig;
+						ext_data_out <= cont1_trig;
 					end
 					'h44 : begin // cont2_joy read
-					ext_data_out <= cont2_trig;
+						ext_data_out <= cont2_trig;
 					end
 					'h48 : begin // cont3_joy read
-					ext_data_out <= cont3_trig;
+						ext_data_out <= cont3_trig;
 					end
 					'h4C : begin // cont4_joy read
-					ext_data_out <= cont4_trig;
+						ext_data_out <= cont4_trig;
 					end
 
 					// Core input and outputs
 					'h50 : begin // target_dataslot_id read
-					ext_data_out <= CORE_INPUT;
+						ext_data_out <= CORE_INPUT;
 					end
 					// Core input and outputs
 					'h54 : begin // target_dataslot_id read
-					ext_data_out <= CORE_OUTPUT;
+						ext_data_out <= CORE_OUTPUT;
 					end
 					
 					// Target Dataslot inputs
 					'h80 : begin // target_dataslot_id read
-					ext_data_out <= target_dataslot_id;
+						ext_data_out <= target_dataslot_id;
 					end
 					'h84 : begin // target_dataslot_bridgeaddr read
-					ext_data_out <= target_dataslot_bridgeaddr;
+						ext_data_out <= target_dataslot_bridgeaddr;
 					end
 					'h88 : begin // target_dataslot_length read
-					ext_data_out <= target_dataslot_length;
+						ext_data_out <= target_dataslot_length;
 					end
 					'h8C : begin // target_dataslot_slotoffset read
-					ext_data_out <= target_dataslot_slotoffset;
+						ext_data_out <= target_dataslot_slotoffset;
 					end
 					'h90 : begin // target_dataslot_slotoffset read
-					ext_data_out <= {target_dataslot_ack, target_dataslot_done, target_dataslot_err[2:0]};
-					externalInterrupt <= 0;
+						ext_data_out <= {target_dataslot_ack, target_dataslot_done, target_dataslot_err[5:0]};
+						externalInterrupt <= 0;
 					end
 					// UART Data rate
 					'h94 : begin // uart_divisor set
-					ext_data_out <= uart_divisor;
+						ext_data_out <= uart_divisor;
 					end
 					// System Clock rate
 					'h98 : begin // System clock set
-					ext_data_out <= sysclk_frequency;
+						ext_data_out <= sysclk_frequency;
 					end
-					
+					'h9C : begin // target_dataslot_slotoffsetLBA48 read
+						ext_data_out <= target_dataslot_slotoffsetLBA48;
+					end
 					// Core reset from the MPU if required
 					'hA4 : begin // The reset the core function incase the system wants to make sure it is in sync
-					ext_data_out[0] <= reset_out;
+						ext_data_out[0] <= reset_out;
 					end
 					// Dataslot ram access
 					'hB0 : begin // dataslot update
-					ext_data_out <= dataslot_update_true;
-					if (dataslot_update_true) dataslot_update_ack <= 1;
+						ext_data_out <= dataslot_update_true;
+						if (dataslot_update_true) dataslot_update_ack <= 1;
 					end
 					'hB4 : begin // dataslot_update_id ID
-					ext_data_out <= dataslot_update_id_latched;
+						ext_data_out <= dataslot_update_id_latched;
 					end
 					'hB8 : begin // dataslot_update_size ID
-					ext_data_out <= dataslot_update_size_latched;
+						ext_data_out <= dataslot_update_size_latched;
+					end
+					'hBC : begin // dataslot_update_size ID
+						ext_data_out <= {32'b0, dataslot_update_size_lba48_latched};
 					end
 					// UART access
 					'hC0 : begin
-					ext_data_out <= {ser_rxrecv,fifo_full,ser_rxdata};
-					if (ser_rxrecv) ser_rxrecv<= 0;
+						ext_data_out <= {ser_rxrecv,fifo_full,ser_rxdata};
+						if (ser_rxrecv) ser_rxrecv<= 0;
 					end
 					// Timer_1
 					'hC4 : begin 
-					ext_data_out <= millisecond_counter_1;
+						ext_data_out <= millisecond_counter_1;
 					end
 					// Timer_1 interupt
 					'hc8 : begin // System clock set
-					ext_data_out <= interupt_counter_1;
+						ext_data_out <= interupt_counter_1;
 					end
 					// Timer_2
 					'hCc : begin 
-					ext_data_out <= millisecond_counter_2;
+						ext_data_out <= millisecond_counter_2;
 					end
 					// HPS Interface
 					'hD0 : begin // This is GPO setup for the HPS interface
-					ext_data_out <= {io_ss2, io_ss1,io_ss0,io_clk,1'b0,IO_DOUT[15:0]};
+						ext_data_out <= {io_ss2, io_ss1,io_ss0,io_clk,1'b0,IO_DOUT[15:0]};
 					end
 					'hD4 : begin // This is GPI setup for the HPS interface
-					ext_data_out <= {io_ack, IO_WIDE, IO_DIN};
+						ext_data_out <= {io_ack, IO_WIDE, IO_DIN};
 					end
 					'hf0 : begin // This is GPI setup for the HPS interface
-					ext_data_out <= littlenden;
+						ext_data_out <= littlenden;
 					end
 					'hf4 : begin // This is GPI setup for the HPS interface
-					ext_data_out <= {interupt_output_1, interupt_output_1_reg, timerenabled};
+						ext_data_out <= {interupt_output_1, interupt_output_1_reg, timerenabled};
 					end
 					'hf8 : begin // This is GPI setup for the HPS interface
-					ext_data_out <= millisecond_counter_real_1;
+						ext_data_out <= millisecond_counter_real_1;
 					end
 					'hfC : begin // This is GPI setup for the HPS interface
-					ext_data_out <= millisecond_counter_real_2;
+						ext_data_out <= millisecond_counter_real_2;
 					end
 					default : ext_data_out <= 0;
 				endcase
@@ -636,83 +691,122 @@ always @(posedge clk_mpu) begin
 				casez (dBus_cmd_payload_address[7:0])
 					// Core input and outputs
 					'h54 : begin // target_dataslot_id read
-					CORE_OUTPUT <= dBus_cmd_payload_data;
+						CORE_OUTPUT <= dBus_cmd_payload_data;
 					end
 					// Target interface to APF
 					'h80 : begin // target_dataslot_id read
-					target_dataslot_id <= dBus_cmd_payload_data;
+						target_dataslot_id <= dBus_cmd_payload_data;
 					end
 					'h84 : begin // target_dataslot_bridgeaddr read
-					target_dataslot_bridgeaddr <= dBus_cmd_payload_data;
+						target_dataslot_bridgeaddr <= dBus_cmd_payload_data;
 					end
 					'h88 : begin // target_dataslot_length read
-					target_dataslot_length <= dBus_cmd_payload_data;
+						target_dataslot_length <= dBus_cmd_payload_data;
 					end
 					'h8C : begin // target_dataslot_slotoffset read
-					target_dataslot_slotoffset <= dBus_cmd_payload_data;
+						target_dataslot_slotoffset <= dBus_cmd_payload_data;
 					end
 					'h90 : begin // target_dataslot_slotoffset read
-					{externalInterrupt_enabled, target_dataslot_write, target_dataslot_read} <= dBus_cmd_payload_data;
+						{externalInterrupt_enabled, target_dataslot_Open_file, target_dataslot_Get_filename, target_dataslot_flush, target_dataslot_enableLBA48, target_dataslot_write, target_dataslot_read} <= dBus_cmd_payload_data;
 					end
 					// uart_divisor set
 					'h94 : begin 
-					uart_divisor <= dBus_cmd_payload_data;
+						uart_divisor <= dBus_cmd_payload_data;
 					end
 					// System clock set
 					'h98 : begin 
-					sysclk_frequency <= dBus_cmd_payload_data;
+						sysclk_frequency <= dBus_cmd_payload_data;
+					end
+					'h9C : begin // target_dataslot_slotoffsetLBA48 read
+						target_dataslot_slotoffsetLBA48 <= dBus_cmd_payload_data;
 					end
 					// The reset the core function incase the system wants to make sure it is in sync
 					'hA4 : begin 
-					reset_out <= dBus_cmd_payload_data[0];
+						reset_out <= dBus_cmd_payload_data[0];
 					end
 					// UART Data
 					'hC0 : begin 
-					ser_txdata <= dBus_cmd_payload_data[7:0];
-					ser_txgo <= 1;
+						ser_txdata <= dBus_cmd_payload_data[7:0];
+						ser_txgo <= 1;
 					end
 					// Timer_1 and disabled interrupt flag
 					'hC4 : begin 
-					millisecond_counter_reset_1 <= dBus_cmd_payload_data[0];
-					timerenabled <= 0;
+						millisecond_counter_reset_1 <= dBus_cmd_payload_data[0];
+						timerenabled <= 0;
 					end
 					// Timer_1  and enabled interrupt flag
 					'hc8 : begin // System clock set
-					interupt_counter_1 <= dBus_cmd_payload_data;
-					timerenabled <= 1;
+						interupt_counter_1 <= dBus_cmd_payload_data;
+						timerenabled <= 1;
 					end
 					// Timer_2
 					'hCC : begin 
-					millisecond_counter_reset_2 <= dBus_cmd_payload_data[0];
+						millisecond_counter_reset_2 <= dBus_cmd_payload_data[0];
 					end
 					// This is setup for the HPS interface
 					'hD0 : begin 
-					gp_out[31:0] <= dBus_cmd_payload_data;
+						gp_out[31:0] <= dBus_cmd_payload_data;
 					end
 					// This will change the Enden of the BRAM between the AFP and the BRAM for the CPU if required
 					'hf0 : begin 
-					littlenden <= dBus_cmd_payload_data[0];
+						littlenden <= dBus_cmd_payload_data[0];
 					end
 					'hf4 : begin 
-					interupt_mask <= dBus_cmd_payload_data[0];
+						interupt_mask <= dBus_cmd_payload_data[0];
 					end
 				endcase
 			end
 		end
-		else begin 
-			dataslot_data_access <= 0;
-			ext_data_en <= 0;
-			dBus_rsp_ready <= 1;
-		end
 	end
 end
+
+// Address Decoding
+
+reg [2:0] 	memory_mux;
+reg 			dBus_rsp_ready_single;
  
+always @(posedge clk_mpu) begin
+	dBus_rsp_ready_single <= 0;
+	if (dBus_cmd_valid && dBus_cmd_ready) begin
+		 if (dBus_cmd_payload_address[31:24] == 8'h00) begin  // Main BRAM
+			dBus_rsp_ready_single <= 1;
+			memory_mux <= 0;
+		end
+		else if (dBus_cmd_payload_address[31:8] == 'hFFFF_FF) begin // regs
+			dBus_rsp_ready_single <= 1;
+			memory_mux <= 1;
+		end
+		else if (dBus_cmd_payload_address[31:12] == 'hffff0) begin  // DataSlots BRAM
+			dBus_rsp_ready_single <= 1;
+			memory_mux <= 2;
+		end
+		else if (dBus_cmd_payload_address[31:24] == 8'h01) begin  // Scratch BRAM
+			dBus_rsp_ready_single <= 1;
+			memory_mux <= 3;
+		end
+		else if (dBus_cmd_payload_address[31:24] == 8'h10) begin  // PSRAM
+			memory_mux <= 4;
+		end 
+		
+	end
+		
+end
+ 
+ 
+always @* begin
+	casez(memory_mux)
+		'd4		: dBus_rsp_ready <= 1'b1;
+		default 	: dBus_rsp_ready <= dBus_rsp_ready_single;
+	endcase
+end
 
 always @* begin
-	casez({ext_data_en, dataslot_data_access})
-		'b1z		: dBus_rsp_data <= ext_data_out;
-		'b01		: dBus_rsp_data <= datatable_q;
-		default 	: dBus_rsp_data <= from_rom;
+	casez(memory_mux)
+		'd1		: dBus_rsp_data <= ext_data_out;
+		'd2		: dBus_rsp_data <= datatable_q;
+		'd3		: dBus_rsp_data <= scratch_bram_data_rom;
+		'd4		: dBus_rsp_data <= datatable_q;
+		default 	: dBus_rsp_data <= dBus_bram_data_rom;
 	endcase
 end
 

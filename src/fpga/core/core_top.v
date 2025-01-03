@@ -4,7 +4,7 @@
 // Instantiated by the real top-level: apf_top
 //
 
-//`default_nettype none
+`default_nettype none
 
 module core_top (
 
@@ -253,16 +253,16 @@ module core_top (
 //  assign cart_tran_pin31_dir = 1'b0;        // input
  // UART
  wire TXDATA;                        // your UART transmit data hooks up here
- //wire RXDATA = cart_tran_pin31;        // your UART RX data shows up here
+//  wire RXDATA = cart_tran_pin31;        // your UART RX data shows up here
  
  // button/LED
  wire LED = 0;                    // LED hooks up here.  HIGH = light up, LOW = off
- //wire BUTTON = cart_tran_bank3[0];    // button data comes out here.  LOW = pressed, HIGH = unpressed
+ wire BUTTON = cart_tran_bank3[0];    // button data comes out here.  LOW = pressed, HIGH = unpressed
 
   // link port is input only
-  assign port_tran_so            = TXDATA;
-  assign port_tran_so_dir        = 1'b1;  // SO is output only
-  wire RXDATA = port_tran_si;
+  assign port_tran_so            = 1'bz;
+  assign port_tran_so_dir        = 1'b0;  // SO is output only
+  assign port_tran_si            = 1'bz;
   assign port_tran_si_dir        = 1'b0;  // SI is input only
   assign port_tran_sck           = 1'bz;
   assign port_tran_sck_dir       = 1'b0;  // clock direction can change
@@ -321,31 +321,68 @@ module core_top (
 
 	wire [31:0] 	mpu_reg_bridge_rd_data;
 	wire [31:0] 	mpu_ram_bridge_rd_data;
+	wire [31:0]  	mpu_scrachram_bridge_rd_data;
+	wire [31:0]  	mpu_psram_bridge_rd_data;
+	
 	wire [2:0]		video_slot_output;
   // for bridge write data, we just broadcast it to all bus devices
   // for bridge read data, we have to mux it
   // add your own devices here
+  
+
+parameter SIZE_BRAM_256 			= 6;
+parameter SIZE_BRAM_512 			= 7;
+parameter SIZE_BRAM_1k 				= 8;
+parameter SIZE_BRAM_2k 				= 9;
+parameter SIZE_BRAM_4k 				= 10;
+parameter SIZE_BRAM_8k 				= 11;
+parameter SIZE_BRAM_16k 			= 12;
+parameter SIZE_BRAM_32k 			= 13;
+parameter SIZE_BRAM_64k 			= 14;
+parameter SIZE_BRAM_128k 			= 15;
+
+parameter MPU_BRAM_SIZE 			= SIZE_BRAM_64k;
+//parameter MPU_SCRATCH_BRAM_SIZE 	= SIZE_BRAM_8k;
+parameter MPU_SCRATCH_BRAM_SIZE 	= SIZE_BRAM_16k;
+
+parameter CORE_REG_ADDRESS 		= 8'h00;
+parameter CORE_DATA_ADDRESS 		= 8'h20;
+
+parameter MPU_BRAM_ADDRESS			= 8'h80;
+parameter MPU_SCRACHRAM_ADDRESS	= 8'h81;
+parameter MPU_PSRAM_ADDRESS		= 8'h82;
+parameter MPU_REG_ADDRESS 			= 8'hf0;
+
+parameter CMD_REG_ADDRESS 			= 8'hf8;
+
+parameter ANALOGIZER_CFG_ADDRESS 	= 8'hf7; //Analogizer settings
+  
   always @(*) begin
-    casex (bridge_addr)
+    case (bridge_addr[31:24])
       default: begin
         bridge_rd_data <= 0;
       end
-      32'h2xxxxxxx: begin
+    CORE_DATA_ADDRESS : begin
         bridge_rd_data <= sd_read_data;
       end
-      32'hF7000000: begin 
-        bridge_rd_data <= {18'h0,analogizer_settings};
-        //bridge_rd_data <= analogizer_settings;
-      end
-		  32'h8xxxxxxx: begin
+		MPU_BRAM_ADDRESS : begin
         bridge_rd_data <= mpu_ram_bridge_rd_data;
       end
-		  32'hf0xxxxxx: begin
+		MPU_SCRACHRAM_ADDRESS : begin
+        bridge_rd_data <= mpu_scrachram_bridge_rd_data;
+      end
+		MPU_PSRAM_ADDRESS : begin
+        bridge_rd_data <= mpu_psram_bridge_rd_data;
+      end
+		MPU_REG_ADDRESS : begin
         bridge_rd_data <= mpu_reg_bridge_rd_data;
       end
-      32'hF8xxxxxx: begin
-        bridge_rd_data <= cmd_bridge_rd_data;
-      end
+    CMD_REG_ADDRESS : begin
+      bridge_rd_data <= cmd_bridge_rd_data;
+    end
+    ANALOGIZER_CFG_ADDRESS : begin
+        bridge_rd_data <= {18'h0,analogizer_settings};
+    end
     endcase
   end
 
@@ -353,69 +390,70 @@ module core_top (
     if (reset_delay > 0) begin
       reset_delay <= reset_delay - 1;
     end
+   
 
-    if (bridge_wr) begin
-      casex (bridge_addr)
-//        32'h0: begin
-//          ioctl_download <= bridge_wr_data[0];
-//        end
-//        32'h4: begin
-//          save_download <= bridge_wr_data[0];
-//        end
-//        32'h8: begin
-//          is_sgx <= bridge_wr_data[0];
-//        end
-        32'h50: begin
+    button1_turbo_speed <= 2'b00;
+    button2_turbo_speed <= 2'b00;
+
+    if (bridge_wr && ((bridge_addr[31:24] == CORE_REG_ADDRESS) || (bridge_addr[31:24] == ANALOGIZER_CFG_ADDRESS))) begin
+      casex (bridge_addr[15:0])
+        16'h0050: begin
           reset_delay <= 32'h100000;
         end
-        32'h100: begin
+        16'h0100: begin
           turbo_tap_enable <= bridge_wr_data[0];
         end
-        32'h104: begin
+        16'h0104: begin
           button6_enable <= bridge_wr_data[0];
         end
-        32'h108: begin
-          button1_turbo_speed <= bridge_wr_data[1:0];
-        end
-        32'h10C: begin
-          button2_turbo_speed <= bridge_wr_data[1:0];
-        end
-        32'h200: begin
+        // 16'h0108: begin
+        //   button1_turbo_speed <= bridge_wr_data[1:0];
+        // end
+        // 16'h010C: begin
+        //   button2_turbo_speed <= bridge_wr_data[1:0];
+        // end
+        16'h0200: begin
           overscan_enable <= bridge_wr_data[0];
         end
-        32'h204: begin
+        16'h0204: begin
           extra_sprites_enable <= bridge_wr_data[0];
         end
-        // 32'h208: begin
-        //   raw_rgb_enable <= bridge_wr_data[0];
-//        end
-        32'h300: begin
+        16'h0208: begin
+          raw_rgb_enable <= bridge_wr_data[0];
+        end
+        16'h0300: begin
           master_audio_boost <= bridge_wr_data[1:0];
         end
-        32'h304: begin
+        16'h0304: begin
           adpcm_audio_boost <= bridge_wr_data[0];
         end
-        32'h308: begin
+        16'h0308: begin
           cd_audio_boost <= bridge_wr_data[0];
+        end  
+        16'h0700: begin
+          analogizer_settings  <=  bridge_wr_data[13:0];
         end
-        /*[ANALOGIZER_HOOK_BEGIN]*/
-				32'hF7000000: analogizer_settings  <=  bridge_wr_data[13:0];
-				/*[ANALOGIZER_HOOK_END]*/
       endcase
     end
   end
+  
+  /******************************************************
+  
+	Command Core
+  
+  ******************************************************/
 
-  //
-  // host/target command handler
-  //
-  wire reset_n;  // driven by host commands, can be used as core-wide reset
-  wire [31:0] cmd_bridge_rd_data;
+	//
+	// host/target command handler
+	//
+	wire reset_n;  // driven by host commands, can be used as core-wide reset
+	wire [31:0] cmd_bridge_rd_data;
 
-  // bridge host commands
-  // synchronous to clk_74a
-  wire status_boot_done = pll_core_locked;
-  wire status_setup_done = pll_core_locked;  // rising edge triggers a target command
-  wire status_running = reset_n;  // we are running as soon as reset_n goes high
+	// bridge host commands
+	// synchronous to clk_74a
+	wire status_boot_done = pll_core_locked;
+	wire status_setup_done = pll_core_locked;  // rising edge triggers a target command
+	wire status_running = reset_n;  // we are running as soon as reset_n goes high
 
 	wire            dataslot_requestread;
 	wire    [15:0]  dataslot_requestread_id;
@@ -431,58 +469,64 @@ module core_top (
 	wire            dataslot_update;
 	wire    [15:0]  dataslot_update_id;
 	wire    [31:0]  dataslot_update_size;
+	wire 	  [15:0]	 dataslot_update_size_lba48;
 
 	wire            dataslot_allcomplete;
 
-  wire savestate_supported;
-  wire [31:0] savestate_addr;
-  wire [31:0] savestate_size;
-  wire [31:0] savestate_maxloadsize;
+	wire savestate_supported;
+	wire [31:0] savestate_addr;
+	wire [31:0] savestate_size;
+	wire [31:0] savestate_maxloadsize;
 
-  wire savestate_start;
-  wire savestate_start_ack;
-  wire savestate_start_busy;
-  wire savestate_start_ok;
-  wire savestate_start_err;
+	wire savestate_start;
+	wire savestate_start_ack;
+	wire savestate_start_busy;
+	wire savestate_start_ok;
+	wire savestate_start_err;
 
-  wire savestate_load;
-  wire savestate_load_ack;
-  wire savestate_load_busy;
-  wire savestate_load_ok;
-  wire savestate_load_err;
+	wire savestate_load;
+	wire savestate_load_ack;
+	wire savestate_load_busy;
+	wire savestate_load_ok;
+	wire savestate_load_err;
 
-  wire osnotify_inmenu;
-  
+	wire osnotify_inmenu;
+
 	wire     [31:0] rtc_epoch_seconds;
 	wire     [31:0] rtc_date_bcd;
 	wire     [31:0] rtc_time_bcd;
 	wire            rtc_valid;
-  
-  
+
+
 	wire            target_dataslot_read;       
 	wire            target_dataslot_write;
+	wire 				 target_dataslot_enableLBA48;
+	wire 				 target_dataslot_flush;
+	wire 				 target_dataslot_Get_filename;
+	wire 				 target_dataslot_Open_file;
 
 	wire            target_dataslot_ack;        
 	wire            target_dataslot_done;
-	wire    [2:0]   target_dataslot_err;
+	wire    [5:0]   target_dataslot_err;
 
 	wire     [15:0] target_dataslot_id;
 	wire     [31:0] target_dataslot_slotoffset;
+	wire 		[15:0] target_dataslot_slotoffsetLBA48;
 	wire     [31:0] target_dataslot_bridgeaddr;
 	wire     [31:0] target_dataslot_length;
 
-  // bridge target commands
-  // synchronous to clk_74a
-  wire  [35:0] EXT_BUS;
+	// bridge target commands
+	// synchronous to clk_74a
+	wire  [35:0] EXT_BUS;
 
-  // bridge data slot access
+	// bridge data slot access
 
-  wire [9:0]  datatable_addr;
-  wire 		  datatable_wren;
-  
-  wire        datatable_rden;
-  wire [31:0] datatable_data;
-  wire [31:0] datatable_q;
+	wire [9:0]  datatable_addr;
+	wire 		  datatable_wren;
+
+	wire        datatable_rden;
+	wire [31:0] datatable_data;
+	wire [31:0] datatable_q;
 
 core_bridge_cmd icb (
 
@@ -501,20 +545,21 @@ core_bridge_cmd icb (
     .status_setup_done      		( status_setup_done ),
     .status_running         		( status_running ),
 
-    .dataslot_requestread       ( dataslot_requestread ),
-    .dataslot_requestread_id    ( dataslot_requestread_id ),
-    .dataslot_requestread_ack   ( dataslot_requestread_ack ),
-    .dataslot_requestread_ok    ( dataslot_requestread_ok ),
+    .dataslot_requestread       	( dataslot_requestread ),
+    .dataslot_requestread_id    	( dataslot_requestread_id ),
+    .dataslot_requestread_ack   	( dataslot_requestread_ack ),
+    .dataslot_requestread_ok    	( dataslot_requestread_ok ),
 
-    .dataslot_requestwrite      ( dataslot_requestwrite ),
-    .dataslot_requestwrite_id   ( dataslot_requestwrite_id ),
-    .dataslot_requestwrite_size ( dataslot_requestwrite_size ),
-    .dataslot_requestwrite_ack  ( dataslot_requestwrite_ack ),
-    .dataslot_requestwrite_ok   ( dataslot_requestwrite_ok ),
+    .dataslot_requestwrite      	( dataslot_requestwrite ),
+    .dataslot_requestwrite_id   	( dataslot_requestwrite_id ),
+    .dataslot_requestwrite_size 	( dataslot_requestwrite_size ),
+    .dataslot_requestwrite_ack  	( dataslot_requestwrite_ack ),
+    .dataslot_requestwrite_ok   	( dataslot_requestwrite_ok ),
 
-    .dataslot_update            ( dataslot_update ),
-    .dataslot_update_id         ( dataslot_update_id ),
-    .dataslot_update_size       ( dataslot_update_size ),
+    .dataslot_update            	( dataslot_update ),
+    .dataslot_update_id         	( dataslot_update_id ),
+    .dataslot_update_size       	( dataslot_update_size ),
+    .dataslot_update_size_lba48 	( dataslot_update_size_lba48 ),
     
     .dataslot_allcomplete   		( dataslot_allcomplete ),
 
@@ -534,33 +579,45 @@ core_bridge_cmd icb (
     .savestate_start_ok     		( savestate_start_ok ),
     .savestate_start_err    		( savestate_start_err ),
 
-    .savestate_load         ( savestate_load ),
-    .savestate_load_ack     ( savestate_load_ack ),
-    .savestate_load_busy    ( savestate_load_busy ),
-    .savestate_load_ok      ( savestate_load_ok ),
-    .savestate_load_err     ( savestate_load_err ),
+    .savestate_load         		( savestate_load ),
+    .savestate_load_ack     		( savestate_load_ack ),
+    .savestate_load_busy    		( savestate_load_busy ),
+    .savestate_load_ok      		( savestate_load_ok ),
+    .savestate_load_err     		( savestate_load_err ),
 
-    .osnotify_inmenu        ( osnotify_inmenu ),
+    .osnotify_inmenu        		( osnotify_inmenu ),
     
-    .target_dataslot_read       ( target_dataslot_read ),
-    .target_dataslot_write      ( target_dataslot_write ),
+    .target_dataslot_read       	( target_dataslot_read ),
+    .target_dataslot_write      	( target_dataslot_write ),
+	 
+	 .target_dataslot_enableLBA48	( target_dataslot_enableLBA48 ),
+	 .target_dataslot_flush			( target_dataslot_flush ),
+	 .target_dataslot_Get_filename( target_dataslot_Get_filename ),
+	 .target_dataslot_Open_file	( target_dataslot_Open_file ),
 
-    .target_dataslot_ack        ( target_dataslot_ack ),
-    .target_dataslot_done       ( target_dataslot_done ),
-    .target_dataslot_err        ( target_dataslot_err ),
+    .target_dataslot_ack        	( target_dataslot_ack ),
+    .target_dataslot_done       	( target_dataslot_done ),
+    .target_dataslot_err        	( target_dataslot_err ),
 
-    .target_dataslot_id         ( target_dataslot_id ),
-    .target_dataslot_slotoffset ( target_dataslot_slotoffset ),
-    .target_dataslot_bridgeaddr ( target_dataslot_bridgeaddr ),
-    .target_dataslot_length     ( target_dataslot_length ),
+    .target_dataslot_id         	( target_dataslot_id ),
+    .target_dataslot_slotoffset 	( target_dataslot_slotoffset ),
+	 .target_dataslot_slotoffsetLBA48 ( target_dataslot_slotoffsetLBA48 ),
+    .target_dataslot_bridgeaddr 	( target_dataslot_bridgeaddr ),
+    .target_dataslot_length     	( target_dataslot_length ),
 
-    .datatable_addr         ( datatable_addr ),
-    .datatable_wren         ( datatable_wren ),
-    .datatable_rden         ( datatable_rden ),
-    .datatable_data         ( datatable_data ),
-    .datatable_q            ( datatable_q )
+    .datatable_addr         		( datatable_addr ),
+    .datatable_wren         		( datatable_wren ),
+    .datatable_rden         		( datatable_rden ),
+    .datatable_data         		( datatable_data ),
+    .datatable_q            		( datatable_q )
 
 );
+
+  /******************************************************
+  
+	DataSlots Core
+  
+  ******************************************************/
 
   reg ioctl_download = 0;
   reg save_download = 0;
@@ -585,7 +642,117 @@ end
   wire [24:0] sd_buff_addr_in;
   wire [24:0] sd_buff_addr_out;
 
+  /******************************************************
+  
+	MPU Core
+  
+  ******************************************************/
+  
+  
 
+wire reset_mpu_l;
+wire IO_OSD;
+
+MPU_AFP_CORE #(
+  .MPU_BRAM_ADDRESS			( MPU_BRAM_ADDRESS ), // This sets the location on the APF bus to watch out for
+  .MPU_BRAM_SIZE 				( MPU_BRAM_SIZE ), //Address lines for the memory array
+  .MPU_PSRAM_ADDRESS			( MPU_PSRAM_ADDRESS ),
+  .MPU_SCRACHRAM_ADDRESS	( MPU_SCRACHRAM_ADDRESS ),
+  .MPU_SCRATCH_BRAM_SIZE	( MPU_SCRATCH_BRAM_SIZE )
+) MPU_AFP_CORE(
+		// Controls for the MPU
+		.clk_mpu								( clk_74a ), 							// Clock of the MPU itself
+		.clk_sys								( clk_sys_42_95 ),
+		.clk_74a								( clk_74a ),							// Clock of the APF Bus
+		.reset_n								( status_running),							// Reset from the APF System
+		.reset_out							( reset_mpu_l ),						// Able to restart the core from the MPU if required
+		
+		// APF Bus controll
+		.bridge_addr            		( bridge_addr ),
+		.bridge_rd              		( bridge_rd ),
+		.mpu_reg_bridge_rd_data       ( mpu_reg_bridge_rd_data ),		// Used for interactions
+		.mpu_ram_bridge_rd_data       ( mpu_ram_bridge_rd_data ),		// Used for ram up/download	
+		.mpu_scrachram_bridge_rd_data	( mpu_scrachram_bridge_rd_data ),
+		.mpu_psram_bridge_rd_data		( mpu_psram_bridge_rd_data ),
+		.bridge_wr              		( bridge_wr ),
+		.bridge_wr_data         		( bridge_wr_data ),
+	  
+	   // Debugging to the Cart	
+//		.rxd									( RXDATA ),
+//		.txd									( TXDATA ),
+		.rxd									(),
+		.txd									(),
+		
+		// APF Controller access if required
+		
+		.cont1_key          				( cont1_key ),
+		.cont2_key          				( cont2_key ),
+		.cont3_key          				( cont3_key ),
+		.cont4_key          				( cont4_key ),
+		.cont1_joy          				( cont1_joy ),
+		.cont2_joy          				( cont2_joy ),
+		.cont3_joy          				( cont3_joy ),
+		.cont4_joy          				( cont4_joy ),
+		.cont1_trig         				( cont1_trig ),
+		.cont2_trig         				( cont2_trig ),
+		.cont3_trig         				( cont3_trig ),
+		.cont4_trig         				( cont4_trig ),
+		
+		.cram_a                			( cram1_a ),
+		.cram_dq               			( cram1_dq ),
+		.cram_wait             			( cram1_wait ),
+		.cram_clk              			( cram1_clk ),
+		.cram_adv_n            			( cram1_adv_n ),
+		.cram_cre              			( cram1_cre ),
+		.cram_ce0_n            			( cram1_ce0_n ),
+		.cram_ce1_n            			( cram1_ce1_n ),
+		.cram_oe_n             			( cram1_oe_n ),
+		.cram_we_n             			( cram1_we_n ),
+		.cram_ub_n             			( cram1_ub_n ),
+		.cram_lb_n             			( cram1_lb_n ),
+		
+		// MPU Controlls to the APF
+		
+		.dataslot_update            	( dataslot_update ),
+		.dataslot_update_id         	( dataslot_update_id ),
+		.dataslot_update_size       	( dataslot_update_size ),
+		.dataslot_update_size_lba48 	( dataslot_update_size_lba48 ),
+	  
+		.target_dataslot_read       	( target_dataslot_read ),
+		.target_dataslot_write      	( target_dataslot_write ),
+		.target_dataslot_enableLBA48	( target_dataslot_enableLBA48 ),
+		.target_dataslot_flush			( target_dataslot_flush ),
+		.target_dataslot_Get_filename	( target_dataslot_Get_filename ),
+		.target_dataslot_Open_file		( target_dataslot_Open_file ),
+
+		.target_dataslot_ack        	( target_dataslot_ack ),
+		.target_dataslot_done       	( target_dataslot_done ),
+		.target_dataslot_err        	( target_dataslot_err ),
+
+		.target_dataslot_id         		( target_dataslot_id ),
+		.target_dataslot_slotoffset 		( target_dataslot_slotoffset ),
+		.target_dataslot_slotoffsetLBA48 (target_dataslot_slotoffsetLBA48),
+		.target_dataslot_bridgeaddr 		( target_dataslot_bridgeaddr ),
+		.target_dataslot_length     		( target_dataslot_length ),
+
+		.datatable_addr         		( datatable_addr ),
+		.datatable_wren         		( datatable_wren ),
+		.datatable_rden         		( datatable_rden ),
+		.datatable_data         		( datatable_data ),
+		.datatable_q            		( datatable_q ),
+		
+		// Core interactions
+		.IO_UIO       						( EXT_BUS[34] ),
+		.IO_OSD      						( EXT_BUS[35] ),
+		.IO_STROBE    						( EXT_BUS[33] ),
+		.IO_WAIT      						( EXT_BUS[32] ),
+		.IO_DIN       						( EXT_BUS[15:0] ),
+		.IO_DOUT      						( EXT_BUS[31:16] ),
+		.IO_WIDE								( 1'b1 ),
+		.CORE_OUTPUT						(CORE_OUTPUT),
+		.CORE_INPUT							(CORE_INPUT)
+	 
+	 );
 
   wire ioctl_download_s;
   wire save_download_s;
@@ -768,7 +935,6 @@ end
   wire [15:0] audio_l;
   wire [15:0] audio_r;
 
-  wire [1:0] dotclock_divider;
   wire border;
 
 /*[ANALOGIZER_HOOK_BEGIN]*/
@@ -784,17 +950,55 @@ end
     analogizer_video_type = analogizer_settings_s[13:10];
   end
 
-  //*** Analogizer Interface V1.1 ***
+    //*** Analogizer Interface V1.1 ***
   reg analogizer_ena;
   reg [3:0] analogizer_video_type;
   reg [4:0] snac_game_cont_type /* synthesis keep */;
   reg [3:0] snac_cont_assignment /* synthesis keep */;
   
+wire [31:0] p1_joy, p2_joy;
+//use PSX Dual Shock style left analog stick as directional pad
+wire is_analog_input = (snac_game_cont_type == 5'h13);
+
+//! Player 1 ---------------------------------------------------------------------------
+reg p1_up, p1_down, p1_left, p1_right;
+wire p1_up_analog, p1_down_analog, p1_left_analog, p1_right_analog;
+//using left analog joypad
+assign p1_up_analog    = (p1_joy[15:8] < 8'h40) ? 1'b1 : 1'b0; //analog range UP 0x00 Idle 0x7F DOWN 0xFF, DEADZONE +- 0x15
+assign p1_down_analog  = (p1_joy[15:8] > 8'hC0) ? 1'b1 : 1'b0; 
+assign p1_left_analog  = (p1_joy[7:0]  < 8'h40) ? 1'b1 : 1'b0; //analog range LEFT 0x00 Idle 0x7F RIGHT 0xFF, DEADZONE +- 0x15
+assign p1_right_analog = (p1_joy[7:0]  > 8'hC0) ? 1'b1 : 1'b0;
+
+always @(posedge clk_sys_42_95) begin
+    p1_up    <= (is_analog_input) ? p1_up_analog    : p1_btn[0];
+    p1_down  <= (is_analog_input) ? p1_down_analog  : p1_btn[1];
+    p1_left  <= (is_analog_input) ? p1_left_analog  : p1_btn[2];
+    p1_right <= (is_analog_input) ? p1_right_analog : p1_btn[3];
+end
+//! Player 2 ---------------------------------------------------------------------------
+reg p2_up, p2_down, p2_left, p2_right;
+wire p2_up_analog, p2_down_analog, p2_left_analog, p2_right_analog;
+//using left analog joypad
+assign p2_up_analog    = (p2_joy[15:8] < 8'h40) ? 1'b1 : 1'b0; //analog range UP 0x00 Idle 0x7F DOWN 0xFF, DEADZONE +- 0x15
+assign p2_down_analog  = (p2_joy[15:8] > 8'hC0) ? 1'b1 : 1'b0; 
+assign p2_left_analog  = (p2_joy[7:0]  < 8'h40) ? 1'b1 : 1'b0; //analog range LEFT 0x00 Idle 0x7F RIGHT 0xFF, DEADZONE +- 0x15
+assign p2_right_analog = (p2_joy[7:0]  > 8'hC0) ? 1'b1 : 1'b0;
+
+always @(posedge clk_sys_42_95) begin
+    p2_up    <= (is_analog_input) ? p2_up_analog    : p2_btn[0];
+    p2_down  <= (is_analog_input) ? p2_down_analog  : p2_btn[1];
+    p2_left  <= (is_analog_input) ? p2_left_analog  : p2_btn[2];
+    p2_right <= (is_analog_input) ? p2_right_analog : p2_btn[3];
+end
+
+
+
+
   //switch between Analogizer SNAC and Pocket Controls for P1-P4 (P3,P4 when uses PCEngine Multitap)
   wire [15:0] p1_btn, p2_btn, p3_btn, p4_btn;
   reg [15:0] p1_controls, p2_controls, p3_controls, p4_controls;
 
-  always @(posedge clk_sys_42_95) begin
+   always @(posedge clk_sys_42_95) begin
     if(snac_game_cont_type == 5'h0) begin //SNAC is disabled
                   p1_controls <= cont1_key_s;
                   p2_controls <= cont2_key_s;
@@ -804,46 +1008,40 @@ end
     else begin
       case(snac_cont_assignment)
       4'h0:    begin 
-                  p1_controls <= p1_btn;
+                  p1_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
                   p2_controls <= cont2_key_s;
                   p3_controls <= cont3_key_s;
                   p4_controls <= cont4_key_s;
                 end
       4'h1:    begin 
                   p1_controls <= cont1_key_s;
-                  p2_controls <= p1_btn;
+                  p2_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
                   p3_controls <= cont3_key_s;
                   p4_controls <= cont4_key_s;
                 end
       4'h2:    begin
-                  p1_controls <= p1_btn;
-                  p2_controls <= p2_btn;
+                  p1_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
+                  p2_controls <= {p2_btn[15:4],p2_right,p2_left,p2_down,p2_up};
                   p3_controls <= cont3_key_s;
                   p4_controls <= cont4_key_s;
                 end
       4'h3:    begin
-                  p1_controls <= p2_btn;
-                  p2_controls <= p1_btn;
+                  p1_controls <= {p2_btn[15:4],p2_right,p2_left,p2_down,p2_up};
+                  p2_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
                   p3_controls <= cont3_key_s;
                   p4_controls <= cont4_key_s;
                 end
       4'h4:    begin
-                  p1_controls <= p1_btn;
-                  p2_controls <= p2_btn;
-                  p3_controls <= p3_btn;
-                  p4_controls <= p4_btn;
-                end
-      4'h5:    begin
-                  p1_controls <= p4_btn;
-                  p2_controls <= p3_btn;
-                  p3_controls <= p2_btn;
-                  p4_controls <= p1_btn;
-                end
-      4'h6:    begin
                   p1_controls <= cont1_key_s;
                   p2_controls <= cont2_key_s;
-                  p3_controls <= p1_btn;
-                  p4_controls <= p2_btn;
+                  p3_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
+                  p4_controls <= {p2_btn[15:4],p2_right,p2_left,p2_down,p2_up};
+                end
+      4'h5:    begin
+                  p1_controls <= {p1_btn[15:4],p1_right,p1_left,p1_down,p1_up};
+                  p2_controls <= {p2_btn[15:4],p2_right,p2_left,p2_down,p2_up};
+                  p3_controls <= p3_btn;
+                  p4_controls <= p4_btn;
                 end
       default: begin
                   p1_controls <= cont1_key_s;
@@ -855,106 +1053,95 @@ end
     end
   end
 
-  //wire clk_vid = ce_pix; //video_rgb_clock; //Fixed one bit shift error on RGB channels.
-
-  wire SYNC = ~^{video_hs_core, video_vs_core};
-  wire  ANALOGIZER_DE = ~(h_blank || v_blank);
-
-  //create aditional switch to blank Pocket screen.
-  wire [23:0] video_rgb_pocket;
-  assign video_rgb_pocket = (analogizer_video_type[3]) ? 24'h000000: vid_rgb_core;
-
-    //Video synchronizer for Analogizer DAC
-    // reg ce_pix_r;
-    // reg vsync_r, hsync_r, csync_r;
-    // reg hblank_r, vblank_r, blank_r;
-    // reg [23:0] rgb_color_r;
-    // always @(posedge clk_sys_42_95) begin
-    //     ce_pix_r <= ce_pix;
-        
-    //     if (!ce_pix_r && ce_pix) begin //rising edge
-    //         vsync_r <= video_vs_core;
-    //         hsync_r <= video_hs_core;
-    //         csync_r <= SYNC;
-    //         hblank_r <= h_blank;
-    //         vblank_r <= v_blank;
-    //         blank_r <= ANALOGIZER_DE;
-    //         rgb_color_r <= vid_rgb_core;
-    //     end
-    // end
-
-
-// SET PAL and NTSC TIMING and pass through status bits. ** YC must be enabled in the qsf file **
 wire [39:0] CHROMA_PHASE_INC;
-wire [26:0] COLORBURST_RANGE;
-wire [4:0] CHROMA_ADD;
-wire [4:0] CHROMA_MULT;
-//wire PALFLAG;
+wire PALFLAG;
 
-	parameter NTSC_REF = 3.579545;   
-	parameter PAL_REF = 4.43361875;
-	// Colorburst Lenth Calculation to send to Y/C Module, based on the CLK_VIDEO of the core
-	localparam [6:0] COLORBURST_START = (3.7 * (CLK_VIDEO_NTSC/NTSC_REF));
-	localparam [9:0] COLORBURST_NTSC_END = (9 * (CLK_VIDEO_NTSC/NTSC_REF)) + COLORBURST_START;
-	localparam [9:0] COLORBURST_PAL_END = (10 * (CLK_VIDEO_PAL/PAL_REF)) + COLORBURST_START;
- 
-	// Parameters to be modifed
-  parameter CLK_VIDEO_NTSC = 42.954545; // Must be filled E.g XX.X Hz - CLK_VIDEO
-	parameter CLK_VIDEO_PAL = 42.954545; // Must be filled E.g XX.X Hz - CLK_VIDEO
-  //PAL CLOCK FREQUENCY SHOULD BE 42.56274
-	localparam [39:0] NTSC_PHASE_INC = 40'd91625968981; //d91_625_958_315; //d91_625_968_981; // ((NTSC_REF**2^40) / CLK_VIDEO_NTSC) - SNES Example;
-	//localparam [39:0] PAL_PHASE_INC = 40'd114532461227; // ((PAL_REF*2^40) / CLK_VIDEO_PAL)- SNES Example;
+// adjusted for 67.108864 video clock
+localparam [39:0] NTSC_PHASE_INC = 40'd91625968981; // ((NTSC_REF * 2^40) / CLK_VIDEO_NTSC)
+localparam [39:0] PAL_PHASE_INC  = 40'd114532461227;  // ((PAL_REF * 2^40) / CLK_VIDEO_PAL)
 
-	// Send Parameters to Y/C Module
-	assign CHROMA_PHASE_INC = NTSC_PHASE_INC; 
-	//assign PALFLAG = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC); 
-  assign CHROMA_ADD = 5'd0; //yc_chroma_add_s;
-  assign CHROMA_MULT = 5'd0; //yc_chroma_mult_s;
- 	assign COLORBURST_RANGE = {COLORBURST_START, COLORBURST_NTSC_END, COLORBURST_PAL_END}; // Pass colorburst length
+// Send Parameters to Y/C Module
+assign CHROMA_PHASE_INC = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC) ? PAL_PHASE_INC : NTSC_PHASE_INC; 
+assign PALFLAG = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC); 
+
+reg [2:0] fx /* synthesis preserve */;
+always @(posedge clk_sys_42_95) begin
+    case (analogizer_video_type)
+        4'd5, 4'd13:    fx <= 3'd0; //SC  0%
+        4'd6, 4'd14:    fx <= 3'd2; //SC  50%
+        4'd7, 4'd15:    fx <= 3'd4; //hq2x
+        default:        fx <= 3'd0;
+    endcase
+end
+
+wire ANALOGIZER_CSYNC = ~^{HS, VS};
+wire ANALOGIZER_DE = ~(HBL || VBL);
+wire ANALOGIZER_DE2;
+
+//video fix
+wire hs_fix,vs_fix;
+sync_fix sync_v(video_rgb_clock, video_hs_core, hs_fix);
+sync_fix sync_h(video_rgb_clock, video_vs_core, vs_fix);
+
+reg [23:0] RGB_fix;
+reg CE,HS,VS,HBL,VBL;
+wire [23:0] RGB_fix2;
+wire CE2,HS2,VS2,HBL2,VBL2;
+
+always @(posedge video_rgb_clock) begin
+	reg old_ce;
+	old_ce <= ce_pix;
+	CE <= 0;
+	if(~old_ce & ce_pix) begin
+		CE <= 1;
+		HS <= hs_fix;
+		if(~HS & hs_fix) VS <= vs_fix;
+
+		RGB_fix <= vid_rgb_core;
+		HBL <= h_blank;
+		if(HBL & ~h_blank) VBL <= v_blank;
+	end
+end
+
+//create aditional switch to blank Pocket screen.
+wire [23:0] video_rgb_pocket;
+assign video_rgb_pocket = (analogizer_video_type[3]) ? 24'h000000: vid_rgb_core;
 
 //42_954_545
-openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(42_954_545)) analogizer (
-	.i_clk(clk_sys_42_95),
+openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(42_954_545), .LINE_LENGTH(560)) analogizer (
+	.i_clk(video_rgb_clock),
 	.i_rst(~reset_n || reset_delay > 0), //i_rst is active high
 	.i_ena(1'b1),
 	//Video interface
+   .video_clk(video_rgb_clock),
 	.analog_video_type(analogizer_video_type),
-  // .R(rgb_color_r[23:16]),
-	// .G(rgb_color_r[15:8]),
-	// .B(rgb_color_r[7:0]),
-  // .Hblank(hblank_r),
-  // .Vblank(vblank_r),
-  // .BLANKn(blank_r),
-  // .Csync(csync_r), //composite SYNC on HSync.
-  // .Hsync(hsync_r),
-	// .Vsync(vsync_r),
-  .R(vid_rgb_core[23:16]),
-	.G(vid_rgb_core[15:8]),
-	.B(vid_rgb_core[7:0]),
-  .Hblank(h_blank),
-  .Vblank(v_blank),
-  .BLANKn(ANALOGIZER_DE),
-  .Csync(SYNC), //composite SYNC on HSync.
-  .Hsync(video_hs_core),
-	.Vsync(video_vs_core),
-	.video_clk(clk_sys_42_95),
-  //Video Y/C Encoder interface
-  .PALFLAG(1'b0),
-  //.CVBS(yc_cvbs_s),
-	.MULFLAG(1'b0),
-	.CHROMA_ADD(CHROMA_ADD),
-	.CHROMA_MULT(CHROMA_MULT),
-	.CHROMA_PHASE_INC(CHROMA_PHASE_INC),
-	.COLORBURST_RANGE(COLORBURST_RANGE),
-  //Video SVGA Scandoubler interface
-  .ce_divider(3'd7), //div4
+  .R(RGB_fix[23:16]),
+	.G(RGB_fix[15:8] ),
+	.B(RGB_fix[7:0]  ),
+   .Hblank(HBL),
+   .Vblank(VBL),
+   .BLANKn(ANALOGIZER_DE),
+   .Hsync(HS),
+	.Vsync(VS),
+   .Csync(ANALOGIZER_CSYNC), //composite SYNC on HSync.
+   //Video Y/C Encoder interface
+   .CHROMA_PHASE_INC(CHROMA_PHASE_INC),
+   .PALFLAG(PALFLAG),
+   //Video SVGA Scandoubler interface
+   .ce_pix(CE),
+   .scandoubler(1'b1), //logic for disable/enable the scandoubler
+	.fx(fx), //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
 	//SNAC interface
 	.conf_AB((snac_game_cont_type >= 5'd16)),              //0 conf. A(default), 1 conf. B (see graph above)
 	.game_cont_type(snac_game_cont_type), //0-15 Conf. A, 16-31 Conf. B
 	.p1_btn_state(p1_btn),
+   .p1_joy_state(p1_joy),
 	.p2_btn_state(p2_btn),  
-  .p3_btn_state(p3_btn),
+   .p2_joy_state(p2_joy),
+   .p3_btn_state(p3_btn),
 	.p4_btn_state(p4_btn),  
+   //  .i_VIB_SW1(p1_btn[5:4]), .i_VIB_DAT1(8'hb0), .i_VIB_SW2(p2_btn[5:4]), .i_VIB_DAT2(8'hb0),
+
 	//Pocket Analogizer IO interface to the Pocket cartridge port
 	.cart_tran_bank2(cart_tran_bank2),
 	.cart_tran_bank2_dir(cart_tran_bank2_dir),
@@ -969,12 +1156,11 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(42_954_545)) analogizer (
 	.cart_pin30_pwroff_reset(cart_pin30_pwroff_reset),
 	.cart_tran_pin31(cart_tran_pin31),
 	.cart_tran_pin31_dir(cart_tran_pin31_dir),
-	//debug
+	//debug {PSX_ATT1,PSX_CLK,PSX_CMD,PSX_DAT}
+   //.DBG_TX(),
 	.o_stb()
 );
 /*[ANALOGIZER_HOOK_END]*/
-
-
 
   pce pce (
       .clk_sys_42_95(clk_sys_42_95),
@@ -1047,7 +1233,7 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(42_954_545)) analogizer (
 
       .overscan_enable(overscan_enable_s),
       .extra_sprites_enable(extra_sprites_enable_s),
-      .raw_rgb_enable(1'b1),
+      .raw_rgb_enable(raw_rgb_enable_s),
 
       .mb128_enable(mb128_enable_s),
 
@@ -1079,147 +1265,26 @@ openFPGA_Pocket_Analogizer #(.MASTER_CLK_FREQ(42_954_545)) analogizer (
       .dram_ras_n					(dram_ras_n),
       .dram_cas_n					(dram_cas_n),
       .dram_we_n					(dram_we_n),
-		
-		//SRAM
-		.sram_a                 ( sram_a ),
-		.sram_dq                ( sram_dq ),
-		.sram_oe_n              ( sram_oe_n ),
-		.sram_we_n              ( sram_we_n ),
-		.sram_ub_n              ( sram_ub_n ),
-		.sram_lb_n              ( sram_lb_n ),
-		
-		//CRAM
-		.cram0_a                ( cram0_a ),
-		.cram0_dq               ( cram0_dq ),
-		.cram0_wait             ( cram0_wait ),
-		.cram0_clk              ( cram0_clk ),
-		.cram0_adv_n            ( cram0_adv_n ),
-		.cram0_cre              ( cram0_cre ),
-		.cram0_ce0_n            ( cram0_ce0_n ),
-		.cram0_ce1_n            ( cram0_ce1_n ),
-		.cram0_oe_n             ( cram0_oe_n ),
-		.cram0_we_n             ( cram0_we_n ),
-		.cram0_ub_n             ( cram0_ub_n ),
-		.cram0_lb_n             ( cram0_lb_n ),
-		
-//		.cram1_a                ( cram1_a ),
-//		.cram1_dq               ( cram1_dq ),
-//		.cram1_wait             ( cram1_wait ),
-//		.cram1_clk              ( cram1_clk ),
-//		.cram1_adv_n            ( cram1_adv_n ),
-//		.cram1_cre              ( cram1_cre ),
-//		.cram1_ce0_n            ( cram1_ce0_n ),
-//		.cram1_ce1_n            ( cram1_ce1_n ),
-//		.cram1_oe_n             ( cram1_oe_n ),
-//		.cram1_we_n             ( cram1_we_n ),
-//		.cram1_ub_n             ( cram1_ub_n ),
-//		.cram1_lb_n             ( cram1_lb_n ),
 
-      .ce_pix (ce_pix),
-      .hblank (h_blank),
-      .vblank (v_blank),
-      .hsync  (video_hs_core),
-      .vsync  (video_vs_core),
-      .video_r(vid_rgb_core[23:16]),
-      .video_g(vid_rgb_core[15:8]),
-      .video_b(vid_rgb_core[7:0]),
+		
 
-      .dotclock_divider(dotclock_divider),
-      .border(border),
+      .ce_pix 						(ce_pix),
+      .hblank 						(h_blank),
+      .vblank 						(v_blank),
+      .hsync  						(video_hs_core),
+      .vsync  						(video_vs_core),
+      .video_r						(vid_rgb_core[23:16]),
+      .video_g						(vid_rgb_core[15:8]),
+      .video_b						(vid_rgb_core[7:0]),
 
-      .audio_l(audio_l),
-      .audio_r(audio_r),
-		.EXT_BUS(EXT_BUS)
+      .border						(border),
+
+      .audio_l						(audio_l),
+      .audio_r						(audio_r),
+		.EXT_BUS						(EXT_BUS)
   );
   
   
-wire reset_mpu_l;
-wire IO_OSD;
-
-substitute_mcu_apf_mister substitute_mcu_apf_mister(
-		// Controls for the MPU
-		.clk_mpu								( clk_74a ), 							// Clock of the MPU itself
-		.clk_sys								( clk_sys_42_95 ),
-		.clk_74a								( clk_74a ),							// Clock of the APF Bus
-		.reset_n								( status_running),							// Reset from the APF System
-		.reset_out							( reset_mpu_l ),						// Able to restart the core from the MPU if required
-		
-		// APF Bus controll
-		.bridge_addr            		( bridge_addr ),
-		.bridge_rd              		( bridge_rd ),
-		.mpu_reg_bridge_rd_data       ( mpu_reg_bridge_rd_data ),		// Used for interactions
-		.mpu_ram_bridge_rd_data       ( mpu_ram_bridge_rd_data ),		// Used for ram up/download
-		.bridge_wr              		( bridge_wr ),
-		.bridge_wr_data         		( bridge_wr_data ),
-	  
-	   // Debugging to the Cart	
-		.rxd									( RXDATA ),
-		.txd									( TXDATA ),
-		
-		// APF Controller access if required
-		
-		.cont1_key          				( cont1_key ),
-		.cont2_key          				( cont2_key ),
-		.cont3_key          				( cont3_key ),
-		.cont4_key          				( cont4_key ),
-		.cont1_joy          				( cont1_joy ),
-		.cont2_joy          				( cont2_joy ),
-		.cont3_joy          				( cont3_joy ),
-		.cont4_joy          				( cont4_joy ),
-		.cont1_trig         				( cont1_trig ),
-		.cont2_trig         				( cont2_trig ),
-		.cont3_trig         				( cont3_trig ),
-		.cont4_trig         				( cont4_trig ),
-		
-		.cram_a                			( cram1_a ),
-		.cram_dq               			( cram1_dq ),
-		.cram_wait             			( cram1_wait ),
-		.cram_clk              			( cram1_clk ),
-		.cram_adv_n            			( cram1_adv_n ),
-		.cram_cre              			( cram1_cre ),
-		.cram_ce0_n            			( cram1_ce0_n ),
-		.cram_ce1_n            			( cram1_ce1_n ),
-		.cram_oe_n             			( cram1_oe_n ),
-		.cram_we_n             			( cram1_we_n ),
-		.cram_ub_n             			( cram1_ub_n ),
-		.cram_lb_n             			( cram1_lb_n ),
-		
-		// MPU Controlls to the APF
-		
-		.dataslot_update            	( dataslot_update ),
-		.dataslot_update_id         	( dataslot_update_id ),
-		.dataslot_update_size       	( dataslot_update_size ),
-	  
-		.target_dataslot_read       	( target_dataslot_read ),
-		.target_dataslot_write      	( target_dataslot_write ),
-
-		.target_dataslot_ack        	( target_dataslot_ack ),
-		.target_dataslot_done       	( target_dataslot_done ),
-		.target_dataslot_err        	( target_dataslot_err ),
-
-		.target_dataslot_id         	( target_dataslot_id ),
-		.target_dataslot_slotoffset 	( target_dataslot_slotoffset ),
-		.target_dataslot_bridgeaddr 	( target_dataslot_bridgeaddr ),
-		.target_dataslot_length     	( target_dataslot_length ),
-
-		.datatable_addr         		( datatable_addr ),
-		.datatable_wren         		( datatable_wren ),
-		.datatable_rden         		( datatable_rden ),
-		.datatable_data         		( datatable_data ),
-		.datatable_q            		( datatable_q ),
-		
-		// Core interactions
-		.IO_UIO       						( EXT_BUS[34] ),
-		.IO_OSD      						( EXT_BUS[35] ),
-		.IO_STROBE    						( EXT_BUS[33] ),
-		.IO_WAIT      						( EXT_BUS[32] ),
-		.IO_DIN       						( EXT_BUS[15:0] ),
-		.IO_DOUT      						( EXT_BUS[31:16] ),
-		.IO_WIDE								( 1'b1 ),
-		.CORE_OUTPUT						(CORE_OUTPUT),
-		.CORE_INPUT							(CORE_INPUT)
-	 
-	 );
 	 
 
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -1251,13 +1316,18 @@ substitute_mcu_apf_mister substitute_mcu_apf_mister(
 
       .ce_pix(ce_pix),
       .disable_pix(border),
-      .rgb_in(vid_rgb_core),
+      .rgb_in(video_rgb_pocket),
 
       .vsync_out(video_vs_wire),
       .hsync_out(video_hs_wire),
-		.slot		(CORE_OUTPUT[10:8]),
+		  .slot (CORE_OUTPUT[10:8]),
       .de(video_de_wire),
       .rgb_out(video_rgb_wire)
+      // .vsync_out(video_vs),
+      // .hsync_out(video_hs),
+		  // .slot (CORE_OUTPUT[10:8]),
+      // .de(video_de),
+      // .rgb_out(video_rgb)
   );
   
   osd osd (
@@ -1279,6 +1349,26 @@ substitute_mcu_apf_mister substitute_mcu_apf_mister(
 	.hs_out		(video_hs)
   
   );
+  
+  //OSD for Analogizer video interface
+  // osd osd2 (
+	// .clk_sys		(clk_sys_42_95),
+	// .io_osd		(EXT_BUS[35]),
+	// .io_strobe	(EXT_BUS[33]),
+	// .io_din		(EXT_BUS[31:16]),
+
+	// .clk_video	(clk_sys_42_95),
+	// .din			(RGB_fix),
+
+	// .de_in		(ANALOGIZER_DE),
+	// .vs_in		(VS),
+	// .hs_in		(HS),
+	
+	// .dout			(RGB_fix2),
+	// .de_out		(ANALOGIZER_DE2),
+	// .vs_out		(VS2),
+	// .hs_out		(HS2)
+  // );
 
   ///////////////////////////////////////////////
 
@@ -1316,7 +1406,30 @@ substitute_mcu_apf_mister substitute_mcu_apf_mister(
 
       .locked(pll_core_locked)
   );
+endmodule
 
+module sync_fix
+(
+	input clk,
+	
+	input sync_in,
+	output sync_out
+);
 
+assign sync_out = sync_in ^ pol;
 
+reg pol;
+always @(posedge clk) begin
+	reg [31:0] cnt;
+	reg s1,s2;
+
+	s1 <= sync_in;
+	s2 <= s1;
+	cnt <= s2 ? (cnt - 1) : (cnt + 1);
+
+	if(~s2 & s1) begin
+		cnt <= 0;
+		pol <= cnt[31];
+	end
+end
 endmodule

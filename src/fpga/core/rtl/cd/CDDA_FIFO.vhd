@@ -99,13 +99,15 @@ BEGIN
 	scfifo_component : scfifo
 	GENERIC MAP (
 		add_ram_output_register => "OFF",
-		almost_full_value => 980,
+		--almost_full_value => 980,
+		almost_full_value => 490,
 		intended_device_family => "Cyclone V",
-		lpm_numwords => 1024,
+		--lpm_numwords => 1024,
+		lpm_numwords => 512,
 		lpm_showahead => "ON",
 		lpm_type => "scfifo",
 		lpm_width => 32,
-		lpm_widthu => 10,
+		lpm_widthu => 9,
 		overflow_checking => "ON",
 		underflow_checking => "ON",
 		use_eab => "ON"

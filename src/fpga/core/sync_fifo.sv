@@ -57,6 +57,7 @@ module sync_fifo #(
       .wrusedw()
   );
   defparam dcfifo_component.intended_device_family = "Cyclone V", dcfifo_component.lpm_numwords = 4,
+      dcfifo_component.ram_block_type = "MLAB", //use MLAB instead M10K resources
       dcfifo_component.lpm_showahead = "OFF", dcfifo_component.lpm_type = "dcfifo",
       dcfifo_component.lpm_width = 32, dcfifo_component.lpm_widthu = 2,
       dcfifo_component.overflow_checking = "ON", dcfifo_component.rdsync_delaypipe = 5,

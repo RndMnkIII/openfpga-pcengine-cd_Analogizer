@@ -1,18 +1,55 @@
-Analogizer PC Engine CD 1.0 for Analogue Pocket
+Analogizer PC Engine CD for Analogue Pocket
 ====================================================================
-* [1.0] **Analogizer** support added by **RndMnkIII** and based on **mazamars312** CD 0.2.0 ALPHA Pocket port. See more in the Analogizer main repository: [Analogizer](https://github.com/RndMnkIII/Analogizer) [18/05/2024].
+* [1.0] **Analogizer** support added by **RndMnkIII** and based on **mazamars312** CD 0.2.3  Pocket port. See more in the Analogizer main repository: [Analogizer](https://github.com/RndMnkIII/Analogizer) [18/05/2024].
 * [1.0.1] Fixed YPbPr video output [30/05/24].
 The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler (50% scanlines) video signals.
+* [1.0.2] update based on **mazamars312** 0.2.3 Beta. Added PSX digital/DS/DS2 SNAC support (SCPH-1010, SPCH-1080,SCPH-1180, SCPH-1200, SCPH-10010 and clones).[03/01/2025].
+Many thanks to **Mazamars312** for the help and advice provided.
 
-| Video output | Status |
-| :----------- | :----: |
-| RGBS         |  ✅    |
-| RGsB         |  ✅    |
-| YPbPr        |  ✅    |
-| Y/C*         |  ✅    |
-| Scandoubler  |  ✅    |
+| Video output | Status | SOG Switch(Only R2,R3 Analogizer) |
+| :----------- | :----: | :-------------------------------: |     
+| RGBS         |  ✅    |     Off                           |
+| RGsB         |  ✅    |     On                            |
+| YPbPr        |  ✅🔹  |     On                            |
+| Y/C NTSC     |  ✅    |     Off                           |
+| Y/C PAL      |  ✅    |     Off                           |
+| Scandoubler  |  ❌    |     Off                           |
 
-* **Analogizer** is responsible for generating the correct encoded Y/C signals from RGB and outputs to R,G pins of VGA port. Also redirects the CSync to VGA HSync pin.
+❌ Scandoubler not implemented yet (there are not enough free M10K blocks of RAM to implement it)
+🔹 Tested with Sony PVM-9044D
+
+| :video_game:            | Analogizer A/B config Switch | Status |
+| :---------------------- | :--------------------------- | :----: |
+| DB15                    | A                            |  ✅    |
+| NES                     | A                            |  ✅    |
+| SNES                    | A                            |  ✅    |
+| PCENGINE                | A                            |  ✅    |
+| PCE MULTITAP            | A                            |  ✅    |
+| PSX DS/DS2 Digital DPAD | B                            |  ✅    |
+| PSX DS/DS2 Analog  DPAD | B                            |  ✅    |
+
+The Analogizer interface allow to mix game inputs from compatible SNAC gamepads supported by Analogizer (DB15 Neogeo, NES, SNES, PCEngine, PSX) with Analogue Pocket built-in controls or from Dock USB or wireless supported controllers (Analogue support).
+
+All Analogizer adapter versions (v1, v2 and v3) has a side slide switch labeled as 'A B' that must be configured based on the used SNAC game controller.
+For example for use it with PSX Dual Shock or Dual Shock 2 native gamepad you must position the switch lever on the B side position. For the remaining
+game controllers you must switch the lever on the A side position. 
+Be careful when handling this switch. Use something with a thin, flat tip such as a precision screwdriver with a 2.0mm flat blade for example. Place the tip on the switch lever and press gently until it slides into the desired position:
+```
+     ---
+   B|O  |A  A/B switch on position B
+     ---   
+     ---
+   B|  O|A  A/B switch on position A
+     ---
+``` 
+
+The following options exist in the core menu to configure Analogizer:
+* **SNAC Adapter** List: None, DB15,NES,SNES,PCE,PCE Multitap, SNES swap A,B<->X,Y buttons, PSX (Digital DPAD), PSX (Analog DPAD), PSX (P1 Lightgun). The Lightgun option uses PSX Analogic stick as SNES Lightgun aiming track.
+* **SNAC Controller Assignment** List: several options about how to map SNAC controller to Pocket controls. The controls not mapped to SNAC by default will map to Pocket connected controllers (Pocket built-in or Dock).
+* **Analogizer Video Out** List: you can choose between RGBS (VGA to SCART), RGsB (works is a PVM as YPbPr but using RGB color space), YPbPr (for TV with component video input),
+Y/C NTSC or PAL (for SVideo o compositive video using Y/C Active adapter by Mike S11).
+
+**Analogizer** is responsible for generating the correct encoded Y/C signals from RGB and outputs to R,G pins of VGA port. Also redirects the CSync to VGA HSync pin.
 The required external Y/C adapter that connects to VGA port is responsible for output Svideo o composite video signal using his internal electronics. Oficially
 only the Mike Simone Y/C adapters (active) designs will be supported by Analogizer and will be the ones to use.
 
@@ -35,10 +72,12 @@ I'll recomend also read this guide for MiSTer FPGA but can applied to Analogizer
 [MiSTer FPGA Documentation: Using Your CRT With MiSTer](https://mister-devel.github.io/MkDocs_MiSTer/advanced/crt/)
 
 =====================================================================
+PC Engine CD 0.2.3 Beta for Analogue Pocket
+============================================
 
-This is a pre-release of the 0.2.0 version, which will have some more upgrades to the
-MPU core code. Nothing in the PCE core has been changed that might be causing bugs in the 
-runtime. So please keep that in mind.
+This is a release of the 0.2.3 Beta version, has a requirement of the new Analogue Firmware 2.3 (2024-09-10) for all feactures to work. 
+
+No lower firmware will work with this core and functions added to it.
 
 Ported from the core originally developed by [Gregory
 Estrade](https://github.com/Torlus/FPGAPCE) and heavily modified by
@@ -62,25 +101,38 @@ the MPU is only a small processer with about 64K of RAM, which Im already using
 90% of that for this core. CHD uses a lot of compression that would slow down the 
 processor and will cause a lot of overhead. 
 
-What will make this PCECD 0.2.0 ALPHA completed Release?
+What will be in the next release?
 --------------------------------------------------------
 
--	Get 99 tracks with Multi file BIN/CUE Files  with the new APF framework
+-   Be able to swap CDROM on the menu. I have yet to deside if I need to do a reboot of the whole core, or find out the correct commands to send the core to say a new CDROM    
+    is in the core. It is there in the menu and will be fixed soon.
 
-- 	Remove the need for the requirement of JSON Files. (Yes it is now doable I just 
-	need to do all the checks in the core)
+-   (Maybe) CD-G CDROM to be enabled on this core.
 
-- 	Get Video based games like Sherlock Homes corrected due to the data and CDROM timing.
+-   A new video scalling system to help things look better on the screen. AKA Sherlock homes has a line on the top of the screen and a few other games.
+
+-   New MPU Framework so this and the Amiga cores are more inline with each other for other devs to be able to use.
 
 What is left after this build?
 ------------------------------
 
--	Find those pesky bugs that cause the core to crash ingame!!!
-
--	More sync issues with the CD Audio with some games.
-
 -	Please note that this was a show of concept that the Pocket can do CDROM based cores. So 
 	I hope others might take over on this core to improve on it.
+
+Change log from 0.2.0:
+---------------------
+
+-   The LARGEST Feacture done is NO MORE JSONS!!! The MPU now requests to load CUE files from the APF Framework. Then it will autoload the bin files from the CUE listing. I have not tested WAV files yet.
+
+-   Multi File games are no longer limited to just 26 files, now we can use 99 bin file tracks!!!
+
+-   Timing of the CDROM data has been corrected so games like Sherlock homes videos work correctly
+
+-   Many games fixes have been fixed due to a ram issue using SRAM (AGG Still needs to use SRAM in his cores thos hehe - Love ya mate)
+
+-   Some Error checking is done in runtime for things like missing files, unable to read a file or over runs. These are coded with a number from 1 - 5 so making issues can be easier to find
+
+-   mpu.bin has been changed to pce_mpu_bios.bin for the MPU operations.
 
 
 Change log from 0.1.7:
@@ -109,13 +161,9 @@ Change log from 0.1.7:
 Known Bugs:
 -----------
 
--	At this moment PopfulMail Still has a intro bug in it.
+-	Have not tested WAV file access from the cue files yet
 
--	Have not tested games that crash halfway in. Maybe some testers can confirm this 
-	for me later on
-
--   Games that have FMV use track latency to keep the timing do de-sync at this moment.
-    Will have a look at this in the next build.
+-	Some hacked BIN/CUE files do not work or boot up. I have made a info menu that comes up to advise that the core has had an issue
 
 Change log from 0.1.6:
 ----------------------
@@ -138,19 +186,6 @@ Change log from 0.1.6:
 Notices For running this core
 -----------------------------
 
--   Please do read all of these as there is some special things that need to
-    happen to get the best experance with this core
-
--   Your SDcard needs to be formated as an exFAT as we have found that FAT32
-    formated SDcards have a lot of lag on them due to a bug in the APF
-    firmware.(Analogue knows about this bug and is fixing this). Also having a
-    cluster size of 32K seams to help as well for access times. - This has been
-    resolved in later firmwares of the Analogue Pocket.
-
--   With Multi-BIN files you can only have 27 tracks as a maximum limit due to
-    the limited data slots the APF can handle (You can use single CUE/BIN Isos
-    to be able to get to the 99 tracks tho)
-
 -   Only Cue/BIN ISO's can be used. CHR Iso's cannot be used as the compression
     is too much for the MPU I have designed (74mhz and 64Kbytes of ram is not
     enough for this).
@@ -160,24 +195,22 @@ Notices For running this core
     [@Monkeymad2](https://github.com/neil-morrison44/pocket-sync)
     [RetroDriven](https://github.com/RetroDriven/Pocket_Updater) have worked on
     setting up the JSON's for the CUE/BIN files for you. So please send them the
-    love needed for this.
+    love needed for this. - No longer needed
 
 -   The only missing part in this core is the SuperGrafx chip and the M128
-    memory due to chip size. Will work later on this next for this core to
-    complete it.
+    memory due to chip size.
 
 -   CD Debugging has the track, Minute and Second timers as well as a delay
     counter when a delay happens from the APF framework. This will most likely
     show that the APF or the SDcard is having an issue getting the data and then
     sending it. 
 
--   you will need to check that the Cue files are being generated correctly for
-    timing and popping sounds. the Audio Delay can also help on this.
+-   There is a OSD for errors that happen, It will adivse if it is having a issue loading files and advise which file it is too.
 
--   Repeating of some tracks might need to be looked at more as this could be a
-    end of file issue with the APF. Have added a error menu that stays on for 2
-    seconds if this happens. - Most of this has been resolved Some games do allow
-    some over run of audio to the next track
+-   There is a problem with reading a file and will show the eror code from the APF
+
+-   If it trys to load a image that has a weird setup (Game hacks) and crashes it will advise the user there was a problem with the MPU.
+
 
 Installation and Usage
 ----------------------
@@ -209,7 +242,7 @@ recommended to have them in their own folders
 Then you need to setup the JSON files for the pocket to know which CUE/BIN files
 are to be used
 
-### JSON Manual mode creation
+### JSON Manual mode creation - No longer needed
 
 in the assets\pcecd\Mazamars312.PC Engine CD folder there a image_template.json
 file. depending on how many BIN files files is how many dataslots you use and
@@ -290,7 +323,6 @@ own save file and therefore memory card. Some games don't have the ability to
 initialize a memory card, so each newly created save file is pre-initialized for
 use.
 
- 
 
 ### What is not done
 
@@ -300,19 +332,7 @@ use.
 -   Able to change the H and V sync locations for some games that use other
     screen locations
 
--   More audio sync via an internal timer - this would help in this, but right
-    now ill need to re-write the whole MPU software
-
--   Add more ram to the MPU for other functions
-
--   Clean up the track, minute and second display for both the OSD and the
-    playback of audio to the core.
-
 -   If able to, add the M128 Memory option to the core.
-
--   Fix up bugs for other games that are not displaying correctly.
-
--   Better support for single BIN files
 
 Licensing
 ---------

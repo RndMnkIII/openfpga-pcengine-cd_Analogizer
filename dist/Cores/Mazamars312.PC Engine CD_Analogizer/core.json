@@ -4,15 +4,15 @@
     "metadata": {
       "platform_ids": ["pcecd"],
       "shortname": "PC Engine CD_Analogizer",
-      "description": "[Analogizer] PC Engine CD with Analogizer support",
+      "description": "[ANALOGIZER] PC Engine (known as TurboGrafx-16 in the US) by NEC",
       "author": "Mazamars312",
-      "url": "https://github.com/RndMnkIII/openfpga-pcengine-cd_Analogizer/",
-      "version": "1.0.1",
-      "date_release": "2024-05-30"
+      "url": "https://github.com/Mazamars312/openfpga-pcengine-cd/",
+      "version": "1.0.2",
+      "date_release": "2025-01-03"
     },
     "framework": {
       "target_product": "Analogue Pocket",
-      "version_required": "1.1",
+      "version_required": "2.3",
       "sleep_supported": false,
       "dock": {
         "supported": true,

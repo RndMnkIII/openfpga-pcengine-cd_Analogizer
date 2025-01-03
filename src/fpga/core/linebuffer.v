@@ -272,6 +272,7 @@ module linebuffer_bank (
       .usedw(used)
   );
   defparam bank.add_ram_output_register = "ON", bank.intended_device_family = "Cyclone V",
+      bank.ram_block_type = "MLAB", //use MLAB instead M10K resources
       bank.lpm_numwords = 1024, bank.lpm_showahead = "ON", bank.lpm_type = "scfifo",
       bank.lpm_width = 24, bank.lpm_widthu = 10, bank.overflow_checking = "ON",
       bank.underflow_checking = "ON", bank.use_eab = "ON";
