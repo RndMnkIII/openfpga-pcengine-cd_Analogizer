@@ -16,7 +16,7 @@ Many thanks to **Mazamars312** for the help and advice provided.
 | Y/C PAL      |  ✅    |     Off                           |
 | Scandoubler  |  ✅#   |     Off                           |
 
-# Without HQ2x
+/# Without HQ2x
 🔹 Tested with Sony PVM-9044D
 
 | :video_game:            | Analogizer A/B config Switch | Status |
