@@ -7,7 +7,7 @@ The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler (50% scanlines) 
 Many thanks to **Mazamars312** for the help and advice provided.
 * [1.0.3] Added old style scandoubler(0-75% scanlines, no HQ2x). Works well with this core and uses less memory resources.
 
-| Video output | Status | SOG Switch(Only R2,R3 Analogizer) |
+| 📺 Vid Out  | Status | SOG Switch(Only R2,R3 Analogizer) |
 | :----------- | :----: | :-------------------------------: |     
 | RGBS         |  ✅    |     Off                           |
 | RGsB         |  ✅    |     On                            |
