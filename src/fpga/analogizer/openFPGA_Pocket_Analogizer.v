@@ -91,7 +91,9 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 	//Video SVGA Scandoubler interface
 	input wire ce_pix,
 	input wire scandoubler, //logic for disable/enable the scandoubler
-	input wire [2:0] fx, //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
+	//input wire [2:0] fx, //0 disable, 1 scanlines 25%, 2 scanlines 50%, 3 scanlines 75%, 4 hq2x
+	//using old style scandoubler module for PC Engine CD core:
+	input wire [1:0] fx, //scanlines (00-none 01-25% 10-50% 11-75%)
 	//SNAC interface
     input wire conf_AB,              //0 conf. A(default), 1 conf. B (see graph above)
     input wire [4:0] game_cont_type, //0-15 Conf. A, 16-31 Conf. B
@@ -176,7 +178,7 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 	wire [7:0] R_Sd, G_Sd, B_Sd /* synthesis keep */;
 	wire Hsync_Sd, Vsync_Sd /* synthesis keep */;
 	wire Hblank_Sd, Vblank_Sd /* synthesis keep */;
-	wire BLANKn_SD = ~(Hblank_Sd || Vblank_Sd) /* synthesis keep */;
+	//wire BLANKn_SD = ~(Hblank_Sd || Vblank_Sd) /* synthesis keep */;
 
 	always @(*) begin
 		case(analog_video_type)
@@ -220,6 +222,14 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 			// 	VsyncOut = vga_vs_sl; //Vsync_Sd;
 			// 	BLANKnOut = 1'b1;
 			// end
+			4'h5, 4'h6, 4'h7, 4'hD, 4'hE, 4'hF: begin //Scandoubler modes Old Scandoubler module
+				Rout = R_Sd;
+				Gout = G_Sd;
+				Bout = B_Sd;
+				HsyncOut = Hsync_Sd;
+				VsyncOut = Vsync_Sd;
+				BLANKnOut = 1'b1;
+			end
 			default: begin
 				Rout = 6'h0;
 				Gout = 6'h0;
@@ -262,6 +272,38 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 		.csync_o(yc_cs)
 	);
 
+	//Using old scandoubler code for PC Engine CD core
+	scandoubler sc_video
+	(
+		// system interface
+		.clk_sys(i_clk),
+		.bypass(1'b0),
+
+		// Pixelclock
+		.ce_divider(3'd7), // 0 - clk_sys/4, 1 - clk_sys/2, 2 - clk_sys/3, 3 - clk_sys/4, etc.
+		//.ce_divider(3'd0), // 0 - clk_sys/4, 1 - clk_sys/2, 2 - clk_sys/3, 3 - clk_sys/4, etc.
+		.pixel_ena(), //output
+		.scanlines(fx[1:0]), // scanlines (00-none 01-25% 10-50% 11-75%)
+
+		// shifter video interface
+		.hb_in(Hblank),
+		.vb_in(Vblank),
+		.hs_in(Hsync),
+		//.hs_in(delayed_hsync[1]),
+		.vs_in(Vsync),
+		.r_in({R[7:2]&{6{BLANKn}}}),
+		.g_in({G[7:2]&{6{BLANKn}}}),
+		.b_in({B[7:2]&{6{BLANKn}}}),
+
+		// output interface
+		.hb_out(Hblank_Sd),
+		.vb_out(Vblank_Sd),
+		.hs_out(Hsync_Sd),
+		.vs_out(Vsync_Sd),
+		.r_out(R_Sd),
+		.g_out(G_Sd),
+		.b_out(B_Sd)
+	);
 	// wire ce_pix_Sd /* synthesis keep */;
 	// scandoubler_2 #(.LENGTH(LINE_LENGTH), .HALF_DEPTH(0)) sd
 	// (

@@ -1064,12 +1064,13 @@ localparam [39:0] PAL_PHASE_INC  = 40'd114532461227;  // ((PAL_REF * 2^40) / CLK
 assign CHROMA_PHASE_INC = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC) ? PAL_PHASE_INC : NTSC_PHASE_INC; 
 assign PALFLAG = (analogizer_video_type == 4'h4) || (analogizer_video_type == 4'hC); 
 
-reg [2:0] fx /* synthesis preserve */;
+//Using old style scandoubler
+reg [1:0] fx;
 always @(posedge clk_sys_42_95) begin
     case (analogizer_video_type)
-        4'd5, 4'd13:    fx <= 3'd0; //SC  0%
-        4'd6, 4'd14:    fx <= 3'd2; //SC  50%
-        4'd7, 4'd15:    fx <= 3'd4; //hq2x
+        4'd5, 4'd13:    fx <= 3'd0; //SC 0%
+        4'd6, 4'd14:    fx <= 3'd2; //SC 50%
+        4'd7, 4'd15:    fx <= 3'd3; //SC 75%
         default:        fx <= 3'd0;
     endcase
 end

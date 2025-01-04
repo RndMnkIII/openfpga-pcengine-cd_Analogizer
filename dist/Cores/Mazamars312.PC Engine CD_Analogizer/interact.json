@@ -111,7 +111,7 @@
 				"address": "0xF7000700",
 				"defaultval": "0x0",
 				"mask": "0xFFFFC3FF",
-				"options": [
+        "options": [
 					{
 					  "value": "0x0",
 					  "name": "RGBS"
@@ -133,6 +133,18 @@
             "name": "Y/C PAL"
           },
 					{
+					  "value": "0x1400",
+					  "name": "SC 0% RGBHV"
+					},
+          {
+              "value": "0x1800",
+              "name": "SC 50% RGBHV"
+          },
+          {
+              "value": "0x1C00",
+              "name": "SC 75% RGBHV"
+          },
+					{
 					  "value": "0x2000",
 					  "name": "RGBS,Pocket OFF"
 					},
@@ -143,14 +155,25 @@
 					{
 					  "value": "0x2800",
 					  "name": "YPbPr,Pocket OFF"
-					},            
-          {
+					},            {
 					  "value": "0x2C00",
 					  "name": "Y/C NTSC,Pocket OFF"
 					},
 					{
             "value": "0x3000",
             "name": "Y/C PAL,Pocket OFF"
+          },
+					{
+					  "value": "0x3400",
+					  "name": "SC 0% SC,Pocket OFF"
+					},
+          {
+              "value": "0x3800",
+              "name": "SC 50% RGBHV,Pocket OFF"
+          },
+          {
+              "value": "0x3C00",
+              "name": "SC 75% RGBHV,Pocket OFF"
           }
 				]
 			},

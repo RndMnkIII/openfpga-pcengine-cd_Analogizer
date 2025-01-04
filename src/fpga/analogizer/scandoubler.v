@@ -59,7 +59,7 @@ module scandoubler
 	output [OUT_COLOR_DEPTH-1:0] b_out
 );
 
-parameter HCNT_WIDTH = 9; // Resolution of scandoubler buffer
+parameter HCNT_WIDTH = 10; // Resolution of scandoubler buffer (9 old value)
 parameter COLOR_DEPTH = 6; // Bits per colour to be stored in the buffer
 parameter HSCNT_WIDTH = 12; // Resolution of hsync counters
 parameter OUT_COLOR_DEPTH = 6; // Bits per color outputted
@@ -150,7 +150,7 @@ reg [COLOR_DEPTH*3-1:0] sd_out;
 // ==================================================================
 
 // 2 lines of 2**HCNT_WIDTH pixels 3*COLOR_DEPTH bit RGB
-(* ramstyle = "no_rw_check" *) reg [COLOR_DEPTH*3-1:0] sd_buffer[2*2**HCNT_WIDTH];
+(* ramstyle = "M10K" *) reg [COLOR_DEPTH*3-1:0] sd_buffer[2*2**HCNT_WIDTH];
 
 // use alternating sd_buffers when storing/reading data   
 reg        line_toggle;

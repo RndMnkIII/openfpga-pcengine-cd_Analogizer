@@ -5,6 +5,7 @@ Analogizer PC Engine CD for Analogue Pocket
 The core can output RGBS, RGsB, YPbPr, Y/C and SVGA scandoubler (50% scanlines) video signals.
 * [1.0.2] update based on **mazamars312** 0.2.3 Beta. Added PSX digital/DS/DS2 SNAC support (SCPH-1010, SPCH-1080,SCPH-1180, SCPH-1200, SCPH-10010 and clones).[03/01/2025].
 Many thanks to **Mazamars312** for the help and advice provided.
+* [1.0.3] Added old style scandoubler(0-75% scanlines, no HQ2x). Works well with this core and uses less memory resources.
 
 | Video output | Status | SOG Switch(Only R2,R3 Analogizer) |
 | :----------- | :----: | :-------------------------------: |     
@@ -13,9 +14,9 @@ Many thanks to **Mazamars312** for the help and advice provided.
 | YPbPr        |  ✅🔹  |     On                            |
 | Y/C NTSC     |  ✅    |     Off                           |
 | Y/C PAL      |  ✅    |     Off                           |
-| Scandoubler  |  ❌    |     Off                           |
+| Scandoubler  |  ✅#   |     Off                           |
 
-❌ Scandoubler not implemented yet (there are not enough free M10K blocks of RAM to implement it)
+# Without HQ2x
 🔹 Tested with Sony PVM-9044D
 
 | :video_game:            | Analogizer A/B config Switch | Status |
